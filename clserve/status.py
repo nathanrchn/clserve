@@ -3,9 +3,11 @@
 import os
 import re
 import subprocess
+import requests
 from dataclasses import dataclass
 from typing import Optional
 from pathlib import Path
+from enum import Enum
 
 
 # Prefix used to identify clserve jobs
@@ -14,6 +16,27 @@ CLSERVE_JOB_PREFIX = "clserve_"
 # Base directory for clserve data
 CLSERVE_DIR = Path(os.path.expanduser("~/.clserve"))
 CLSERVE_LOGS_DIR = CLSERVE_DIR / "logs"
+
+
+class WorkerLoadingStage(Enum):
+    """Stages of worker initialization."""
+
+    UNKNOWN = "unknown"
+    INITIALIZING = "initializing"
+    LOADING_WEIGHTS = "loading_weights"
+    CAPTURING_CUDA_GRAPH = "capturing_cuda_graph"
+    READY = "ready"
+    ERROR = "error"
+
+
+@dataclass
+class WorkerStatus:
+    """Status of a single worker process."""
+
+    worker_id: int
+    node: str
+    stage: WorkerLoadingStage
+    log_file: Optional[Path] = None
 
 
 @dataclass
@@ -32,6 +55,8 @@ class JobInfo:
     tp_size: Optional[int] = None
     dp_size: Optional[int] = None
     use_router: Optional[bool] = None
+    worker_statuses: Optional[list[WorkerStatus]] = None
+    router_worker_count: Optional[int] = None
 
 
 def get_my_jobs(clserve_only: bool = True) -> list[dict]:
@@ -144,6 +169,107 @@ def parse_metadata(log_dir: Path) -> dict:
     return metadata
 
 
+def detect_worker_stage(log_file: Path) -> WorkerLoadingStage:
+    """Detect the current loading stage of a worker from its log file.
+
+    Args:
+        log_file: Path to worker log file
+
+    Returns:
+        WorkerLoadingStage indicating current stage
+    """
+    if not log_file.exists():
+        return WorkerLoadingStage.UNKNOWN
+
+    try:
+        with open(log_file) as f:
+            content = f.read()
+
+        # Check for errors first
+        if "Error" in content or "Exception" in content or "Traceback" in content:
+            return WorkerLoadingStage.ERROR
+
+        # Check for ready state (server started)
+        if (
+            "Application startup complete" in content
+            or "Started server process" in content
+        ):
+            return WorkerLoadingStage.READY
+
+        # Check for CUDA graph capture
+        if "Capture cuda graph" in content or "Capturing batches" in content:
+            # If we see "Capture cuda graph end", it's ready
+            if "Capture cuda graph end" in content:
+                # But only if server startup happened after
+                if "Application startup complete" in content:
+                    return WorkerLoadingStage.READY
+            return WorkerLoadingStage.CAPTURING_CUDA_GRAPH
+
+        # Check for weight loading
+        if (
+            "Load weight begin" in content
+            or "Loading safetensors checkpoint shards" in content
+        ):
+            # If we see "Load weight end", move to next stage
+            if "Load weight end" in content:
+                # Check if CUDA graph capture has started
+                if "Capture cuda graph" in content:
+                    return WorkerLoadingStage.CAPTURING_CUDA_GRAPH
+                # Otherwise still in loading phase (KV cache allocation, etc.)
+                return WorkerLoadingStage.LOADING_WEIGHTS
+            return WorkerLoadingStage.LOADING_WEIGHTS
+
+        # Check for initialization
+        if "server_args=" in content or "Init torch distributed" in content:
+            return WorkerLoadingStage.INITIALIZING
+
+        # If log exists but no markers found, assume initializing
+        if len(content.strip()) > 0:
+            return WorkerLoadingStage.INITIALIZING
+
+        return WorkerLoadingStage.UNKNOWN
+    except Exception:
+        return WorkerLoadingStage.ERROR
+
+
+def get_worker_statuses(log_dir: Path) -> list[WorkerStatus]:
+    """Parse worker log files to determine loading status.
+
+    Args:
+        log_dir: Path to job log directory
+
+    Returns:
+        List of WorkerStatus objects
+    """
+    statuses = []
+
+    # Find all worker log files
+    # Pattern: worker{worker_id}_node{node_rank}_{node}.out or
+    #          worker{worker_id}_node{node_rank}_proc{proc_id}_{node}.out
+    worker_logs = list(log_dir.glob("worker*.out"))
+
+    for log_file in worker_logs:
+        # Parse filename to extract worker ID and node
+        # Examples:
+        # worker0_node0_nid006170.out
+        # worker0_node0_proc0_nid006170.out
+        filename = log_file.name
+        match = re.match(r"worker(\d+)_node\d+(?:_proc\d+)?_(.+)\.out", filename)
+        if match:
+            worker_id = int(match.group(1))
+            node = match.group(2)
+            stage = detect_worker_stage(log_file)
+            statuses.append(
+                WorkerStatus(
+                    worker_id=worker_id, node=node, stage=stage, log_file=log_file
+                )
+            )
+
+    # Sort by worker ID
+    statuses.sort(key=lambda x: x.worker_id)
+    return statuses
+
+
 def extract_url_from_log(log_dir: Path) -> Optional[str]:
     """Extract endpoint URL from job logs.
 
@@ -184,6 +310,24 @@ def extract_url_from_log(log_dir: Path) -> Optional[str]:
     return None
 
 
+def get_router_worker_count(router_url: str) -> Optional[int]:
+    """Query router to get the count of registered workers.
+
+    Args:
+        router_url: Router URL (e.g., http://host:30000)
+
+    Returns:
+        Number of workers registered with router, or None if query fails
+    """
+    try:
+        response = requests.get(f"{router_url}/workers", timeout=2)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("stats", {}).get("regular_count", 0)
+    except Exception:
+        return None
+
+
 def is_clserve_job(job_name: str) -> bool:
     """Check if a job name indicates a clserve job.
 
@@ -222,9 +366,20 @@ def get_job_info(job_id: str, clserve_only: bool = True) -> Optional[JobInfo]:
     # Parse metadata if available
     metadata = {}
     endpoint_url = None
+    worker_statuses = None
+    router_worker_count = None
+
     if log_dir:
         metadata = parse_metadata(log_dir)
         endpoint_url = extract_url_from_log(log_dir)
+
+        # Get worker statuses if job is running
+        if details.get("JobState", "") == "RUNNING":
+            worker_statuses = get_worker_statuses(log_dir)
+
+            # Query router if it's enabled and we have an endpoint
+            if endpoint_url and metadata.get("USE_ROUTER", "").lower() == "true":
+                router_worker_count = get_router_worker_count(endpoint_url)
 
     return JobInfo(
         job_id=job_id,
@@ -243,6 +398,8 @@ def get_job_info(job_id: str, clserve_only: bool = True) -> Optional[JobInfo]:
         use_router=metadata.get("USE_ROUTER", "").lower() == "true"
         if "USE_ROUTER" in metadata
         else None,
+        worker_statuses=worker_statuses,
+        router_worker_count=router_worker_count,
     )
 
 

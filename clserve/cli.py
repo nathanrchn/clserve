@@ -12,6 +12,7 @@ from clserve.status import (
     get_job_info,
     find_jobs_by_model,
     JobInfo,
+    WorkerLoadingStage,
     CLSERVE_LOGS_DIR,
 )
 from clserve.stop import stop_by_job_id, stop_all
@@ -59,7 +60,7 @@ def select_job(jobs: list[JobInfo], action: str = "select") -> Optional[JobInfo]
         url_info = f" - {job.endpoint_url}" if job.endpoint_url else ""
         click.echo(f"  [{i}] {state_icon} {job.job_id}: {model_name}{url_info}")
 
-    click.echo(f"  [0] Cancel")
+    click.echo("  [0] Cancel")
     click.echo()
 
     while True:
@@ -137,7 +138,6 @@ def main(verbose: bool):
 @click.option(
     "--time-limit", "-t", type=str, default="04:00:00", help="Job time limit (HH:MM:SS)"
 )
-@click.option("--job-name", "-j", type=str, default=None, help="Custom job name")
 def serve_cmd(
     model: str,
     workers: int,
@@ -155,7 +155,6 @@ def serve_cmd(
     router_environment: str,
     reasoning_parser: str,
     time_limit: str,
-    job_name: str,
 ):
     """Start serving a model.
 
@@ -197,7 +196,6 @@ def serve_cmd(
         router_environment=router_environment,
         reasoning_parser=reasoning_parser,
         time_limit=time_limit,
-        job_name=job_name,
     )
 
     # Show config info if using predefined config
@@ -214,12 +212,12 @@ def serve_cmd(
 
     try:
         job_id = serve(args)
-        click.echo(f"Job submitted successfully!")
+        click.echo("Job submitted successfully!")
         click.echo(f"  Job ID: {job_id}")
         click.echo(f"  Logs: {CLSERVE_LOGS_DIR / job_id}/log.out")
         click.echo()
         click.echo("Check status with:")
-        click.echo(f"  clserve status")
+        click.echo("  clserve status")
         click.echo()
         click.echo("Get endpoint URL with:")
         click.echo(f"  clserve url {model}")
@@ -280,6 +278,20 @@ def status(identifier: str = None):
             click.echo("  clserve serve <model>")
 
 
+def _format_stage(stage: WorkerLoadingStage) -> str:
+    """Format worker loading stage for display with colored text."""
+    stage_map = {
+        WorkerLoadingStage.UNKNOWN: ("white", "UNKNOWN"),
+        WorkerLoadingStage.INITIALIZING: ("blue", "INITIALIZING"),
+        WorkerLoadingStage.LOADING_WEIGHTS: ("yellow", "LOADING WEIGHTS"),
+        WorkerLoadingStage.CAPTURING_CUDA_GRAPH: ("magenta", "CAPTURING CUDA GRAPH"),
+        WorkerLoadingStage.READY: ("green", "READY"),
+        WorkerLoadingStage.ERROR: ("red", "ERROR"),
+    }
+    color, text = stage_map.get(stage, ("white", stage.value.upper()))
+    return click.style(text, fg=color, bold=True)
+
+
 def _print_job_details(job):
     """Print detailed info for a single job."""
     click.echo(f"Job ID: {job.job_id}")
@@ -299,11 +311,69 @@ def _print_job_details(job):
     if job.use_router is not None:
         click.echo(f"Router: {'enabled' if job.use_router else 'disabled'}")
 
+    # Show worker statuses if available
+    if job.worker_statuses:
+        click.echo()
+        click.echo("Worker Status:")
+
+        # Group by stage
+        stage_counts = {}
+        for ws in job.worker_statuses:
+            stage_counts[ws.stage] = stage_counts.get(ws.stage, 0) + 1
+
+        # Display summary
+        for stage, count in sorted(stage_counts.items(), key=lambda x: x[0].value):
+            click.echo(f"  {_format_stage(stage)}: {count} worker(s)")
+
+        # Show router info if available
+        if job.use_router and job.router_worker_count is not None:
+            total_workers = len(job.worker_statuses)
+            click.echo()
+            click.echo(
+                f"Router Status: {job.router_worker_count}/{total_workers} workers registered"
+            )
+
+        # Show individual worker details
+        click.echo()
+        click.echo("Worker Details:")
+        for ws in job.worker_statuses:
+            click.echo(
+                f"  Worker {ws.worker_id} ({ws.node}): {_format_stage(ws.stage)}"
+            )
+
+
+def _get_loading_status_summary(job: JobInfo) -> str:
+    """Get a short summary of worker loading status."""
+    if not job.worker_statuses:
+        return ""
+
+    # Count workers in each stage
+    ready = sum(1 for ws in job.worker_statuses if ws.stage == WorkerLoadingStage.READY)
+    total = len(job.worker_statuses)
+
+    if ready == total:
+        return click.style("READY", fg="green", bold=True)
+    elif ready == 0:
+        # Find the most common non-ready stage
+        stages = [ws.stage for ws in job.worker_statuses]
+        if all(s == WorkerLoadingStage.INITIALIZING for s in stages):
+            return click.style("INITIALIZING", fg="blue", bold=True)
+        elif any(s == WorkerLoadingStage.LOADING_WEIGHTS for s in stages):
+            return click.style("LOADING", fg="yellow", bold=True)
+        elif any(s == WorkerLoadingStage.CAPTURING_CUDA_GRAPH for s in stages):
+            return click.style("CUDA GRAPH", fg="magenta", bold=True)
+        elif any(s == WorkerLoadingStage.ERROR for s in stages):
+            return click.style("ERROR", fg="red", bold=True)
+        else:
+            return click.style("STARTING", fg="white", bold=True)
+    else:
+        return click.style(f"{ready}/{total} READY", fg="yellow", bold=True)
+
 
 def _print_jobs_table(jobs):
     """Print jobs as a table."""
     table = PrettyTable()
-    table.field_names = ["Job ID", "Name", "State", "Model", "Endpoint URL"]
+    table.field_names = ["Job ID", "Name", "State", "Status", "Model", "Endpoint URL"]
     table.align = "l"
 
     for job in jobs:
@@ -321,11 +391,15 @@ def _print_jobs_table(jobs):
         if len(endpoint) > 35:
             endpoint = endpoint[:32] + "..."
 
+        # Get loading status
+        status = _get_loading_status_summary(job) if job.state == "RUNNING" else "-"
+
         table.add_row(
             [
                 job.job_id,
                 job.job_name,
                 job.state,
+                status,
                 model_name,
                 endpoint,
             ]
@@ -376,7 +450,7 @@ def url(model: str):
     else:
         click.echo(f"Job {job.job_id} does not have an endpoint URL yet", err=True)
         click.echo("The job may still be starting up. Check status with:", err=True)
-        click.echo(f"  clserve status", err=True)
+        click.echo("  clserve status", err=True)
         raise SystemExit(1)
 
 

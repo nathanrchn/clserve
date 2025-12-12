@@ -1,14 +1,12 @@
 """Core job submission logic for clserve."""
 
 import os
-import re
 import random
 import string
 import tempfile
 import subprocess
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from jinja2 import Template
 
@@ -17,7 +15,7 @@ try:
 except ImportError:
     from importlib_resources import files
 
-from clserve.configs import ModelConfig, load_model_config, get_model_path
+from clserve.configs import load_model_config, get_model_path
 
 logger = logging.getLogger(__name__)
 
@@ -42,7 +40,6 @@ class SubmitArgs:
     router_environment: str = "sglang_router"
     reasoning_parser: str = ""
     time_limit: str = "04:00:00"
-    job_name: Optional[str] = None
 
 
 def nanoid(length: int = 6) -> str:
@@ -121,7 +118,6 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
             router_environment=args.router_environment,
             reasoning_parser=args.reasoning_parser,
             time_limit=args.time_limit,
-            job_name=args.job_name,
         )
 
     # Use config values as defaults, but user args override
@@ -152,7 +148,6 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
         router_environment=args.router_environment,
         reasoning_parser=args.reasoning_parser or config.reasoning_parser,
         time_limit=args.time_limit,
-        job_name=args.job_name,
     )
 
 
@@ -171,8 +166,8 @@ def render_job_script(args: SubmitArgs) -> str:
     # Calculate total nodes
     total_nodes = args.nodes_per_worker * args.workers
 
-    # Generate job name if not provided
-    job_name = args.job_name or generate_job_name(args.model)
+    # Generate job name
+    job_name = generate_job_name(args.model)
 
     # Format reasoning parser argument
     reasoning_parser_arg = ""

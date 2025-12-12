@@ -2,7 +2,6 @@
 
 import subprocess
 import logging
-from typing import Optional
 
 from clserve.status import get_job_info, find_jobs_by_model, list_serving_jobs
 

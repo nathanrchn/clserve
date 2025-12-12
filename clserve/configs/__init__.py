@@ -1,9 +1,8 @@
 """Model configurations for clserve."""
 
-from dataclasses import dataclass
-from typing import Optional
-import os
 import yaml
+from typing import Optional
+from dataclasses import dataclass
 
 try:
     from importlib.resources import files
