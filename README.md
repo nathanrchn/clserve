@@ -25,10 +25,14 @@ pip install -e .
 - **Flexible deployment** - Single-node, multi-node, or multiple instances per node
 - **Model management** - Download models from HuggingFace Hub
 - **Log management** - Easy access to job logs for debugging
+- **User configuration** - Persistent configuration for account, partition, and environment defaults
 
 ## Quick Start
 
 ```bash
+# Configure your account and defaults (optional but recommended)
+clserve config
+
 # Download a model (optional - models can be auto-downloaded on first serve)
 clserve download deepseek-v3
 
@@ -49,6 +53,42 @@ clserve stop deepseek-v3
 ```
 
 ## Commands
+
+### `clserve config`
+
+Configure clserve defaults. Configuration is stored in `~/.clserve/config.yaml`.
+
+```bash
+# Show current configuration
+clserve config --show
+
+# Set cluster account
+clserve config --account myproject
+
+# Set multiple values
+clserve config --partition normal --time-limit 08:00:00
+
+# Interactive configuration (prompts for each value)
+clserve config
+```
+
+**Options:**
+- `--show, -s`: Show current configuration
+- `--account, -a`: Set cluster account
+- `--partition, -p`: Set default SLURM partition
+- `--environment, -e`: Set default container environment
+- `--router-environment`: Set router container environment
+- `--time-limit, -t`: Set default time limit (HH:MM:SS)
+
+**Configuration file format (`~/.clserve/config.yaml`):**
+
+```yaml
+account: myproject
+partition: normal
+environment: sglang_gb200
+router_environment: sglang_router
+time_limit: "04:00:00"
+```
 
 ### `clserve serve`
 

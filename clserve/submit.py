@@ -16,6 +16,7 @@ except ImportError:
     from importlib_resources import files
 
 from clserve.configs import load_model_config, get_model_path
+from clserve.config import get_account
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +40,7 @@ class SubmitArgs:
     router_policy: str = "cache_aware"
     router_environment: str = "sglang_router"
     reasoning_parser: str = ""
+    tool_call_parser: str = ""
     time_limit: str = "04:00:00"
 
 
@@ -117,6 +119,7 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
             router_policy=args.router_policy,
             router_environment=args.router_environment,
             reasoning_parser=args.reasoning_parser,
+            tool_call_parser=args.tool_call_parser,
             time_limit=args.time_limit,
         )
 
@@ -147,6 +150,7 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
         else config.router_policy,
         router_environment=args.router_environment,
         reasoning_parser=args.reasoning_parser or config.reasoning_parser,
+        tool_call_parser=args.tool_call_parser or config.tool_call_parser,
         time_limit=args.time_limit,
     )
 
@@ -174,11 +178,20 @@ def render_job_script(args: SubmitArgs) -> str:
     if args.reasoning_parser:
         reasoning_parser_arg = f"--reasoning-parser {args.reasoning_parser}"
 
+    # Format tool call parser argument
+    tool_call_parser_arg = ""
+    if args.tool_call_parser:
+        tool_call_parser_arg = f"--tool-call-parser {args.tool_call_parser}"
+
     # Get home directory for log path
     home = os.path.expanduser("~")
 
+    # Get cluster account from config or system
+    cluster_account = get_account()
+
     return template.render(
         job_name=job_name,
+        cluster_account=cluster_account,
         nodes=total_nodes,
         nodes_per_worker=args.nodes_per_worker,
         workers=args.workers,
@@ -195,6 +208,7 @@ def render_job_script(args: SubmitArgs) -> str:
         router_policy=args.router_policy,
         router_environment=args.router_environment,
         reasoning_parser=reasoning_parser_arg,
+        tool_call_parser=tool_call_parser_arg,
         time_limit=args.time_limit,
         home=home,
     )

@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name={{ job_name }}
-#SBATCH --account=infra01
+#SBATCH --account={{ cluster_account }}
 #SBATCH --time={{ time_limit }}
 #SBATCH --exclusive
 #SBATCH --nodes={{ nodes }}
@@ -24,6 +24,7 @@ USE_ROUTER={{ use_router | lower }}
 ROUTER_ENVIRONMENT={{ router_environment }}
 ROUTER_POLICY={{ router_policy }}
 REASONING_PARSER="{{ reasoning_parser }}"
+TOOL_CALL_PARSER="{{ tool_call_parser }}"
 NUM_GPUS_PER_WORKER={{ num_gpus_per_worker }}
 PROCESSES_PER_NODE=$((4 / NUM_GPUS_PER_WORKER))
 
@@ -129,7 +130,7 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export SGL_ENABLE_JIT_DEEPGEMM=false
 
-python -m sglang.launch_server --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code ${REASONING_PARSER}" &
+python -m sglang.launch_server --model-path ${MODEL_PATH} --host 0.0.0.0 --port 5000 --dist-init-addr ${worker_host_ip}:5757 --nnodes ${NODES_PER_WORKER} --node-rank ${local_rank} --tp-size ${TP_SIZE} --dp-size ${DP_SIZE} --ep-size ${EP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code ${REASONING_PARSER} ${TOOL_CALL_PARSER}" &
 
             echo "Launched worker $worker_id node $local_rank on $node"
         done
@@ -167,7 +168,7 @@ export CUDA_VISIBLE_DEVICES=${cuda_visible_devices}
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 export SGL_ENABLE_JIT_DEEPGEMM=false
 
-python -m sglang.launch_server --model-path ${MODEL_PATH} --host 0.0.0.0 --port ${port} --tp-size ${NUM_GPUS_PER_WORKER} --dp-size ${DP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code ${REASONING_PARSER}" &
+python -m sglang.launch_server --model-path ${MODEL_PATH} --host 0.0.0.0 --port ${port} --tp-size ${NUM_GPUS_PER_WORKER} --dp-size ${DP_SIZE} --cuda-graph-max-bs ${CUDA_GRAPH_MAX_BS} --grammar-backend ${GRAMMAR_BACKEND} --decode-log-interval 1 --trust-remote-code ${REASONING_PARSER} ${TOOL_CALL_PARSER}" &
 
                 echo "Launched process $proc_id on node $node with GPUs ${cuda_visible_devices} on port ${port}"
             done
@@ -199,7 +200,7 @@ set -ex
 export no_proxy=\"0.0.0.0,\$no_proxy\"
 export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
 
-python -m sglang_router.launch_router --host 0.0.0.0 --port 30000 --worker-urls${worker_urls_str} --model-path ${MODEL_PATH} --policy ${ROUTER_POLICY} ${REASONING_PARSER} --worker-startup-timeout-secs 1200" &
+python -m sglang_router.launch_router --host 0.0.0.0 --port 30000 --worker-urls${worker_urls_str} --model-path ${MODEL_PATH} --policy ${ROUTER_POLICY} ${REASONING_PARSER} ${TOOL_CALL_PARSER} --worker-startup-timeout-secs 1200" &
 
     echo ""
     echo "Router URL: ${router_url}"

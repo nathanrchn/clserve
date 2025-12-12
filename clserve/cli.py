@@ -17,6 +17,13 @@ from clserve.status import (
 )
 from clserve.stop import stop_by_job_id, stop_all
 from clserve.configs import list_available_configs, load_model_config
+from clserve.config import (
+    UserConfig,
+    load_config,
+    save_config,
+    get_default_account,
+    CONFIG_FILE,
+)
 
 
 def setup_logging(verbose: bool = False):
@@ -99,12 +106,12 @@ def main(verbose: bool):
 @click.argument("model")
 @click.option("--workers", "-w", type=int, default=1, help="Number of workers")
 @click.option("--nodes-per-worker", "-n", type=int, default=1, help="Nodes per worker")
-@click.option("--partition", "-p", type=str, default="normal", help="SLURM partition")
+@click.option("--partition", "-p", type=str, default=None, help="SLURM partition")
 @click.option(
     "--environment",
     "-e",
     type=str,
-    default="sglang_gb200",
+    default=None,
     help="Container environment",
 )
 @click.option("--tp-size", type=int, default=1, help="Tensor parallel size")
@@ -129,21 +136,24 @@ def main(verbose: bool):
 @click.option(
     "--router-environment",
     type=str,
-    default="sglang_router",
+    default=None,
     help="Router container environment",
 )
 @click.option(
     "--reasoning-parser", type=str, default="", help="Reasoning parser module"
 )
 @click.option(
-    "--time-limit", "-t", type=str, default="04:00:00", help="Job time limit (HH:MM:SS)"
+    "--tool-call-parser", type=str, default="", help="Tool call parser module"
+)
+@click.option(
+    "--time-limit", "-t", type=str, default=None, help="Job time limit (HH:MM:SS)"
 )
 def serve_cmd(
     model: str,
     workers: int,
     nodes_per_worker: int,
-    partition: str,
-    environment: str,
+    partition: Optional[str],
+    environment: Optional[str],
     tp_size: int,
     dp_size: int,
     ep_size: int,
@@ -152,9 +162,10 @@ def serve_cmd(
     grammar_backend: str,
     use_router: bool,
     router_policy: str,
-    router_environment: str,
+    router_environment: Optional[str],
     reasoning_parser: str,
-    time_limit: str,
+    tool_call_parser: str,
+    time_limit: Optional[str],
 ):
     """Start serving a model.
 
@@ -179,12 +190,15 @@ def serve_cmd(
       # Serve a small model with 4 instances per node
       clserve serve llama-8b --num-gpus-per-worker 1 --use-router
     """
+    # Load user config for defaults
+    user_config = load_config()
+
     args = SubmitArgs(
         model=model,
         workers=workers,
         nodes_per_worker=nodes_per_worker,
-        partition=partition,
-        environment=environment,
+        partition=partition if partition is not None else user_config.partition,
+        environment=environment if environment is not None else user_config.environment,
         tp_size=tp_size,
         dp_size=dp_size,
         ep_size=ep_size,
@@ -193,9 +207,12 @@ def serve_cmd(
         grammar_backend=grammar_backend,
         use_router=use_router,
         router_policy=router_policy,
-        router_environment=router_environment,
+        router_environment=router_environment
+        if router_environment is not None
+        else user_config.router_environment,
         reasoning_parser=reasoning_parser,
-        time_limit=time_limit,
+        tool_call_parser=tool_call_parser,
+        time_limit=time_limit if time_limit is not None else user_config.time_limit,
     )
 
     # Show config info if using predefined config
@@ -690,6 +707,126 @@ def logs(model: str):
 
     log_path = CLSERVE_LOGS_DIR / job.job_id
     click.echo(log_path)
+
+
+@main.command()
+@click.option("--show", "-s", is_flag=True, help="Show current configuration")
+@click.option("--account", "-a", type=str, help="Set cluster account")
+@click.option("--partition", "-p", type=str, help="Set default partition")
+@click.option("--environment", "-e", type=str, help="Set default container environment")
+@click.option("--router-environment", type=str, help="Set router container environment")
+@click.option("--time-limit", "-t", type=str, help="Set default time limit (HH:MM:SS)")
+def config(
+    show: bool,
+    account: str,
+    partition: str,
+    environment: str,
+    router_environment: str,
+    time_limit: str,
+):
+    """Configure clserve defaults.
+
+    Configuration is stored in ~/.clserve/config.toml and provides
+    default values for common options.
+
+    Examples:
+
+      # Show current configuration
+      clserve config --show
+
+      # Set cluster account
+      clserve config --account myproject
+
+      # Set multiple values
+      clserve config --partition normal --time-limit 08:00:00
+
+      # Interactive configuration (no options)
+      clserve config
+    """
+    current = load_config()
+
+    # If --show flag, just display current config
+    if show:
+        _show_config(current)
+        return
+
+    # If any option is provided, update that value
+    if any([account, partition, environment, router_environment, time_limit]):
+        if account is not None:
+            current.account = account
+        if partition is not None:
+            current.partition = partition
+        if environment is not None:
+            current.environment = environment
+        if router_environment is not None:
+            current.router_environment = router_environment
+        if time_limit is not None:
+            current.time_limit = time_limit
+
+        save_config(current)
+        click.echo("Configuration updated:")
+        _show_config(current)
+        return
+
+    # Interactive mode - prompt for each value
+    click.echo("Configure clserve defaults")
+    click.echo(f"Config file: {CONFIG_FILE}")
+    click.echo()
+
+    # Account
+    default_account = current.account or get_default_account() or ""
+    account_prompt = "Cluster account"
+    if default_account:
+        account_prompt += f" [{default_account}]"
+    new_account = click.prompt(
+        account_prompt, default=default_account, show_default=False
+    )
+    current.account = new_account
+
+    # Partition
+    new_partition = click.prompt(
+        "Default partition",
+        default=current.partition,
+    )
+    current.partition = new_partition
+
+    # Environment
+    new_environment = click.prompt(
+        "Default container environment",
+        default=current.environment,
+    )
+    current.environment = new_environment
+
+    # Router environment
+    new_router_env = click.prompt(
+        "Router container environment",
+        default=current.router_environment,
+    )
+    current.router_environment = new_router_env
+
+    # Time limit
+    new_time_limit = click.prompt(
+        "Default time limit (HH:MM:SS)",
+        default=current.time_limit,
+    )
+    current.time_limit = new_time_limit
+
+    save_config(current)
+    click.echo()
+    click.echo("Configuration saved!")
+    _show_config(current)
+
+
+def _show_config(config: UserConfig):
+    """Display current configuration."""
+    click.echo()
+    click.echo(f"Config file: {CONFIG_FILE}")
+    click.echo()
+    click.echo(f"  account:            {config.account or '(not set)'}")
+    click.echo(f"  partition:          {config.partition}")
+    click.echo(f"  environment:        {config.environment}")
+    click.echo(f"  router_environment: {config.router_environment}")
+    click.echo(f"  time_limit:         {config.time_limit}")
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ class ModelConfig:
     cuda_graph_max_bs: int = 256
     grammar_backend: str = "llguidance"
     reasoning_parser: str = ""
+    tool_call_parser: str = ""
     use_router: bool = False
     router_policy: str = "cache_aware"
     description: str = ""
