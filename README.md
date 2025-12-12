@@ -5,26 +5,44 @@ CLI tool for serving LLM models on Alps with sglang.
 ## Installation
 
 ```bash
-pip install -e /path/to/clserve
+pip install clserve
 ```
 
-Or from the clserve directory:
+Or install from source:
 
 ```bash
+git clone https://github.com/nathanrchn/clserve
+cd clserve
 pip install -e .
 ```
+
+## Features
+
+- **Predefined model configurations** - Serve popular models with optimized settings
+- **Multi-node distributed serving** - Scale across multiple nodes with tensor parallelism
+- **Load balancing** - Built-in router support for distributing requests across workers
+- **Real-time status monitoring** - Track worker loading stages from initialization to ready
+- **Flexible deployment** - Single-node, multi-node, or multiple instances per node
+- **Model management** - Download models from HuggingFace Hub
+- **Log management** - Easy access to job logs for debugging
 
 ## Quick Start
 
 ```bash
+# Download a model (optional - models can be auto-downloaded on first serve)
+clserve download deepseek-v3
+
 # Serve a model using predefined config
 clserve serve deepseek-v3
 
-# Check status of all clserve jobs
+# Check status of all clserve jobs (shows worker loading stages)
 clserve status
 
 # Get the endpoint URL by model name
 clserve url deepseek-v3
+
+# View logs
+clserve logs deepseek-v3
 
 # Stop the serving job by model name
 clserve stop deepseek-v3
@@ -61,14 +79,17 @@ clserve serve llama-8b --num-gpus-per-worker 1 --use-router
 - `--dp-size`: Data parallel size (default: 1)
 - `--ep-size`: Expert parallel size (default: 1)
 - `--num-gpus-per-worker`: GPUs per worker process (1, 2, or 4)
+- `--cuda-graph-max-bs`: Max batch size for CUDA graphs (default: 256)
+- `--grammar-backend`: Grammar backend (default: llguidance)
+- `--reasoning-parser`: Reasoning parser module (for reasoning models)
 - `--use-router/--no-router`: Enable load balancer router
 - `--router-policy`: Router policy (cache_aware, random, round_robin)
+- `--router-environment`: Router container environment (default: sglang_router)
 - `--time-limit, -t`: Job time limit in HH:MM:SS (default: 04:00:00)
-- `--job-name, -j`: Custom job name
 
 ### `clserve status`
 
-Show status of serving jobs.
+Show status of serving jobs with detailed worker loading information.
 
 ```bash
 # Show all running jobs
@@ -80,6 +101,12 @@ clserve status 12345
 # Show status for jobs serving a model
 clserve status deepseek-v3
 ```
+
+The status command displays:
+- Job state (RUNNING, PENDING, etc.)
+- Worker loading stages (INITIALIZING → LOADING WEIGHTS → CAPTURING CUDA GRAPH → READY)
+- Model information and endpoint URLs
+- Router status (when enabled)
 
 ### `clserve url`
 
@@ -129,6 +156,24 @@ clserve logs deepseek-v3
 tail -f $(clserve logs deepseek-v3)/log.out
 ```
 
+### `clserve download`
+
+Download a model from HuggingFace Hub to the cluster.
+
+```bash
+# Download using alias
+clserve download deepseek-v3
+
+# Download using full model path
+clserve download meta-llama/Llama-3.1-70B-Instruct
+
+# Download specific revision
+clserve download deepseek-v3 --revision main
+```
+
+**Options:**
+- `--revision, -r`: Specific model revision/branch to download
+
 ## Predefined Model Configurations
 
 The following models have optimized configurations:
@@ -136,6 +181,7 @@ The following models have optimized configurations:
 | Alias | Model | TP Size | Nodes/Worker | Description |
 |-------|-------|---------|--------------|-------------|
 | deepseek-v3 | deepseek-ai/DeepSeek-V3.1 | 16 | 4 | DeepSeek V3.1 MoE (FP8) |
+| deepseek-v3.2 | deepseek-ai/DeepSeek-V3.2 | 16 | 4 | DeepSeek V3.2 - 4 workers, 4 nodes each |
 | deepseek-r1 | deepseek-ai/DeepSeek-R1 | 16 | 4 | DeepSeek R1 reasoning model |
 | llama-405b | meta-llama/Llama-3.1-405B-Instruct | 16 | 4 | Llama 3.1 405B |
 | llama-70b | meta-llama/Llama-3.1-70B-Instruct | 4 | 1 | Llama 3.1 70B |
@@ -144,7 +190,11 @@ The following models have optimized configurations:
 | qwen3-coder-480b | Qwen/Qwen3-Coder-480B-A35B-Instruct | 16 | 4 | Qwen3 Coder 480B MoE |
 | qwen3-32b | Qwen/Qwen3-32B | 2 | 1 | Qwen3 32B (2x per node) |
 | qwen3-8b | Qwen/Qwen3-8B | 1 | 1 | Qwen3 8B (4x per node) |
+| qwen3-embedding-4b | Qwen/Qwen3-Embedding-4B | 1 | 1 | Qwen3 Embedding 4B (4x per node) |
 | apertus-8b | swiss-ai/Apertus-8B-Instruct-2509 | 1 | 1 | Apertus 8B (4x per node) |
+| gpt-oss-120b | openai/gpt-oss-120b | 4 | 1 | OpenAI GPT-OSS 120B - 4 workers |
+| minimax-m2 | MiniMaxAI/MiniMax-M2 | 8 | 2 | MiniMax M2 - 4 workers, 2 nodes each |
+| kimi-k2 | moonshotai/Kimi-K2-Instruct-0905 | 16 | 4 | Kimi K2 Instruct - 4 workers |
 
 ## Examples
 
@@ -204,14 +254,3 @@ clserve unifies single-node and multi-node deployments into a single template:
 - **Multiple instances per node**: `--num-gpus-per-worker 1 --use-router`
 
 The router is automatically configured when needed for load balancing across multiple worker processes.
-
-## Job Naming
-
-Jobs are automatically named with a `clserve_` prefix followed by a random ID:
-- `clserve_abc123`
-- `clserve_xyz789`
-
-This prefix allows clserve to filter and show only its own jobs in `clserve status`,
-without interference from other SLURM jobs.
-
-You can override with `--job-name` (but should keep the `clserve_` prefix for filtering).
