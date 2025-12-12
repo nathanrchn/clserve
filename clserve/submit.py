@@ -129,7 +129,9 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
         model=config.model_path,
         workers=args.workers if args.workers != 1 else config.workers,
         nodes_per_worker=(
-            args.nodes_per_worker if args.nodes_per_worker != 1 else config.nodes_per_worker
+            args.nodes_per_worker
+            if args.nodes_per_worker != 1
+            else config.nodes_per_worker
         ),
         partition=args.partition,
         environment=args.environment,
@@ -137,12 +139,16 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
         dp_size=args.dp_size if args.dp_size != 1 else config.dp_size,
         ep_size=args.ep_size if args.ep_size != 1 else config.ep_size,
         num_gpus_per_worker=(
-            args.num_gpus_per_worker if args.num_gpus_per_worker != 4 else config.num_gpus_per_worker
+            args.num_gpus_per_worker
+            if args.num_gpus_per_worker != 4
+            else config.num_gpus_per_worker
         ),
         cuda_graph_max_bs=args.cuda_graph_max_bs,
         grammar_backend=args.grammar_backend,
         use_router=args.use_router or config.use_router,
-        router_policy=args.router_policy if args.router_policy != "cache_aware" else config.router_policy,
+        router_policy=args.router_policy
+        if args.router_policy != "cache_aware"
+        else config.router_policy,
         router_environment=args.router_environment,
         reasoning_parser=args.reasoning_parser or config.reasoning_parser,
         time_limit=args.time_limit,
@@ -259,7 +265,9 @@ def serve(args: SubmitArgs) -> str:
 
     # Check if router should be auto-enabled
     processes_per_node = 4 // merged_args.num_gpus_per_worker
-    total_processes = merged_args.workers * merged_args.nodes_per_worker * processes_per_node
+    total_processes = (
+        merged_args.workers * merged_args.nodes_per_worker * processes_per_node
+    )
     if total_processes > 1 and not merged_args.use_router:
         logger.warning(
             "Multiple worker processes detected but router is disabled. "

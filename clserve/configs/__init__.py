@@ -81,7 +81,9 @@ def load_model_config(model_name: str) -> Optional[ModelConfig]:
             break
 
     try:
-        config_content = (files("clserve") / "configs" / "models" / f"{lookup_name}.yaml").read_text()
+        config_content = (
+            files("clserve") / "configs" / "models" / f"{lookup_name}.yaml"
+        ).read_text()
         config_dict = yaml.safe_load(config_content)
         return ModelConfig(**config_dict)
     except (FileNotFoundError, TypeError):
@@ -92,6 +94,10 @@ def list_available_configs() -> list[str]:
     """List all available predefined model configurations."""
     try:
         models_dir = files("clserve") / "configs" / "models"
-        return [f.name.replace(".yaml", "") for f in models_dir.iterdir() if f.name.endswith(".yaml")]
+        return [
+            f.name.replace(".yaml", "")
+            for f in models_dir.iterdir()
+            if f.name.endswith(".yaml")
+        ]
     except (FileNotFoundError, TypeError):
         return []

@@ -7,7 +7,13 @@ from prettytable import PrettyTable
 
 from clserve import __version__
 from clserve.submit import SubmitArgs, serve
-from clserve.status import list_serving_jobs, get_job_info, find_jobs_by_model, JobInfo, CLSERVE_LOGS_DIR
+from clserve.status import (
+    list_serving_jobs,
+    get_job_info,
+    find_jobs_by_model,
+    JobInfo,
+    CLSERVE_LOGS_DIR,
+)
 from clserve.stop import stop_by_job_id, stop_all
 from clserve.configs import list_available_configs, load_model_config
 
@@ -44,7 +50,11 @@ def select_job(jobs: list[JobInfo], action: str = "select") -> Optional[JobInfo]
     for i, job in enumerate(jobs, 1):
         model_name = ""
         if job.model_path:
-            model_name = job.model_path.split("/")[-1] if "/" in job.model_path else job.model_path
+            model_name = (
+                job.model_path.split("/")[-1]
+                if "/" in job.model_path
+                else job.model_path
+            )
         state_icon = "●" if job.state == "RUNNING" else "○"
         url_info = f" - {job.endpoint_url}" if job.endpoint_url else ""
         click.echo(f"  [{i}] {state_icon} {job.job_id}: {model_name}{url_info}")
@@ -89,18 +99,44 @@ def main(verbose: bool):
 @click.option("--workers", "-w", type=int, default=1, help="Number of workers")
 @click.option("--nodes-per-worker", "-n", type=int, default=1, help="Nodes per worker")
 @click.option("--partition", "-p", type=str, default="normal", help="SLURM partition")
-@click.option("--environment", "-e", type=str, default="sglang_gb200", help="Container environment")
+@click.option(
+    "--environment",
+    "-e",
+    type=str,
+    default="sglang_gb200",
+    help="Container environment",
+)
 @click.option("--tp-size", type=int, default=1, help="Tensor parallel size")
 @click.option("--dp-size", type=int, default=1, help="Data parallel size")
 @click.option("--ep-size", type=int, default=1, help="Expert parallel size")
-@click.option("--num-gpus-per-worker", type=click.Choice(["1", "2", "4"]), default="4", help="GPUs per worker process")
-@click.option("--cuda-graph-max-bs", type=int, default=256, help="Max batch size for CUDA graphs")
-@click.option("--grammar-backend", type=str, default="llguidance", help="Grammar backend")
-@click.option("--use-router/--no-router", default=False, help="Enable load balancer router")
+@click.option(
+    "--num-gpus-per-worker",
+    type=click.Choice(["1", "2", "4"]),
+    default="4",
+    help="GPUs per worker process",
+)
+@click.option(
+    "--cuda-graph-max-bs", type=int, default=256, help="Max batch size for CUDA graphs"
+)
+@click.option(
+    "--grammar-backend", type=str, default="llguidance", help="Grammar backend"
+)
+@click.option(
+    "--use-router/--no-router", default=False, help="Enable load balancer router"
+)
 @click.option("--router-policy", type=str, default="cache_aware", help="Router policy")
-@click.option("--router-environment", type=str, default="sglang_router", help="Router container environment")
-@click.option("--reasoning-parser", type=str, default="", help="Reasoning parser module")
-@click.option("--time-limit", "-t", type=str, default="04:00:00", help="Job time limit (HH:MM:SS)")
+@click.option(
+    "--router-environment",
+    type=str,
+    default="sglang_router",
+    help="Router container environment",
+)
+@click.option(
+    "--reasoning-parser", type=str, default="", help="Reasoning parser module"
+)
+@click.option(
+    "--time-limit", "-t", type=str, default="04:00:00", help="Job time limit (HH:MM:SS)"
+)
 @click.option("--job-name", "-j", type=str, default=None, help="Custom job name")
 def serve_cmd(
     model: str,
@@ -273,7 +309,11 @@ def _print_jobs_table(jobs):
     for job in jobs:
         model_name = ""
         if job.model_path:
-            model_name = job.model_path.split("/")[-1] if "/" in job.model_path else job.model_path
+            model_name = (
+                job.model_path.split("/")[-1]
+                if "/" in job.model_path
+                else job.model_path
+            )
             if len(model_name) > 30:
                 model_name = model_name[:27] + "..."
 
@@ -281,13 +321,15 @@ def _print_jobs_table(jobs):
         if len(endpoint) > 35:
             endpoint = endpoint[:32] + "..."
 
-        table.add_row([
-            job.job_id,
-            job.job_name,
-            job.state,
-            model_name,
-            endpoint,
-        ])
+        table.add_row(
+            [
+                job.job_id,
+                job.job_name,
+                job.state,
+                model_name,
+                endpoint,
+            ]
+        )
 
     click.echo(table)
 
@@ -340,7 +382,9 @@ def url(model: str):
 
 @main.command()
 @click.argument("model", required=False)
-@click.option("--all", "-a", "stop_all_flag", is_flag=True, help="Stop all matching jobs")
+@click.option(
+    "--all", "-a", "stop_all_flag", is_flag=True, help="Stop all matching jobs"
+)
 @click.option("--force", "-f", is_flag=True, help="Skip confirmation")
 def stop_cmd(model: str = None, stop_all_flag: bool = False, force: bool = False):
     """Stop serving jobs.
@@ -361,7 +405,10 @@ def stop_cmd(model: str = None, stop_all_flag: bool = False, force: bool = False
       clserve stop --all
     """
     if model is None and not stop_all_flag:
-        click.echo("Error: Please provide a model name, or use --all to stop all jobs", err=True)
+        click.echo(
+            "Error: Please provide a model name, or use --all to stop all jobs",
+            err=True,
+        )
         raise SystemExit(1)
 
     if stop_all_flag and model is None:
@@ -459,27 +506,33 @@ def models():
             if len(desc) > 40:
                 desc = desc[:37] + "..."
 
-            table.add_row([
-                alias,
-                config.model_path,
-                config.tp_size,
-                config.nodes_per_worker,
-                desc,
-            ])
+            table.add_row(
+                [
+                    alias,
+                    config.model_path,
+                    config.tp_size,
+                    config.nodes_per_worker,
+                    desc,
+                ]
+            )
 
     if configs:
         click.echo("Available predefined model configurations:")
         click.echo()
         click.echo(table)
         click.echo()
-        click.echo("Use 'clserve serve <alias>' to serve a model with its predefined config.")
+        click.echo(
+            "Use 'clserve serve <alias>' to serve a model with its predefined config."
+        )
     else:
         click.echo("No predefined model configurations found.")
 
 
 @main.command()
 @click.argument("model")
-@click.option("--revision", "-r", type=str, default=None, help="Specific model revision/branch")
+@click.option(
+    "--revision", "-r", type=str, default=None, help="Specific model revision/branch"
+)
 def download(model: str, revision: str = None):
     """Download a model from HuggingFace Hub.
 
@@ -502,7 +555,9 @@ def download(model: str, revision: str = None):
     try:
         from huggingface_hub import snapshot_download
     except ImportError:
-        click.echo("Error: huggingface_hub is required for downloading models", err=True)
+        click.echo(
+            "Error: huggingface_hub is required for downloading models", err=True
+        )
         click.echo("Install it with: pip install huggingface_hub", err=True)
         raise SystemExit(1)
 

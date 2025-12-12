@@ -68,13 +68,15 @@ def get_my_jobs(clserve_only: bool = True) -> list[dict]:
             # Filter to only clserve jobs if requested
             if clserve_only and not job_name.startswith(CLSERVE_JOB_PREFIX):
                 continue
-            jobs.append({
-                "job_id": parts[0].strip(),
-                "job_name": job_name,
-                "state": parts[2].strip(),
-                "node_list": parts[3].strip(),
-                "work_dir": parts[4].strip(),
-            })
+            jobs.append(
+                {
+                    "job_id": parts[0].strip(),
+                    "job_name": job_name,
+                    "state": parts[2].strip(),
+                    "node_list": parts[3].strip(),
+                    "work_dir": parts[4].strip(),
+                }
+            )
     return jobs
 
 
@@ -233,10 +235,14 @@ def get_job_info(job_id: str, clserve_only: bool = True) -> Optional[JobInfo]:
         model_path=metadata.get("MODEL_PATH"),
         endpoint_url=endpoint_url,
         workers=int(metadata["WORKERS"]) if "WORKERS" in metadata else None,
-        nodes_per_worker=int(metadata["NODES_PER_WORKER"]) if "NODES_PER_WORKER" in metadata else None,
+        nodes_per_worker=int(metadata["NODES_PER_WORKER"])
+        if "NODES_PER_WORKER" in metadata
+        else None,
         tp_size=int(metadata["TP_SIZE"]) if "TP_SIZE" in metadata else None,
         dp_size=int(metadata["DP_SIZE"]) if "DP_SIZE" in metadata else None,
-        use_router=metadata.get("USE_ROUTER", "").lower() == "true" if "USE_ROUTER" in metadata else None,
+        use_router=metadata.get("USE_ROUTER", "").lower() == "true"
+        if "USE_ROUTER" in metadata
+        else None,
     )
 
 
