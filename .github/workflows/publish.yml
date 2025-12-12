@@ -15,7 +15,7 @@ jobs:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -29,12 +29,8 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.21
         env:
-          # Build for aarch64 on Linux and arm64 on macOS
           CIBW_ARCHS_LINUX: "x86_64 aarch64"
-          CIBW_ARCHS_MACOS: "x86_64 arm64"
-          # Skip PyPy and musllinux builds
           CIBW_SKIP: "pp* *-musllinux_*"
-          # Build for Python 3.10+
           CIBW_BUILD: "cp310-* cp311-* cp312-* cp313-*"
 
       - uses: actions/upload-artifact@v4
