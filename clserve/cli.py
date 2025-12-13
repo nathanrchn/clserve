@@ -615,8 +615,76 @@ def models():
         click.echo(
             "Use 'clserve serve <alias>' to serve a model with its predefined config."
         )
+        click.echo()
+        click.echo(
+            "Don't see the model you need? Request it with: clserve request <model>"
+        )
     else:
         click.echo("No predefined model configurations found.")
+
+
+@main.command()
+@click.argument("model")
+def request(model: str):
+    """Request a new model to be added to clserve.
+
+    Opens a GitHub issue URL with pre-filled information to request
+    adding a new model configuration.
+
+    MODEL is the HuggingFace model path (e.g., meta-llama/Llama-3.1-70B-Instruct)
+    or a model name you'd like to see supported.
+
+    Examples:
+
+      clserve request meta-llama/Llama-3.1-70B-Instruct
+      clserve request mistral-large
+    """
+    import urllib.parse
+
+    # Check if model already exists
+    config = load_model_config(model)
+    if config:
+        click.echo(f"Model '{model}' is already available!")
+        click.echo(f"  Use: clserve serve {model}")
+        return
+
+    # Build the GitHub issue URL
+    title = f"Add model: {model}"
+    body = f"""## Model Request
+
+**Model name/path:** {model}
+
+**HuggingFace URL:** https://huggingface.co/{model}
+
+## Details
+
+<!-- Please fill in the following information -->
+
+**Why do you need this model?**
+
+
+**Suggested configuration (if known):**
+- Tensor Parallel Size (TP):
+- Nodes per worker:
+- Any special requirements:
+
+---
+*Requested via `clserve request`*
+"""
+
+    params = urllib.parse.urlencode({
+        "title": title,
+        "body": body,
+        "labels": "model-request",
+    })
+
+    issue_url = f"https://github.com/nathanrchn/clserve/issues/new?{params}"
+
+    click.echo("To request this model, open the following URL:")
+    click.echo()
+    click.echo(f"  {issue_url}")
+    click.echo()
+    click.echo("This will create a GitHub issue to request adding the model.")
 
 
 @main.command()

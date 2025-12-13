@@ -214,6 +214,20 @@ clserve download deepseek-v3 --revision main
 **Options:**
 - `--revision, -r`: Specific model revision/branch to download
 
+### `clserve request`
+
+Request a new model to be added to clserve. This generates a GitHub issue URL with pre-filled information.
+
+```bash
+# Request a model by HuggingFace path
+clserve request meta-llama/Llama-3.1-70B-Instruct
+
+# Request by model name
+clserve request mistral-large
+```
+
+The command outputs a URL that opens a pre-filled GitHub issue. If the model is already available, it will let you know.
+
 ## Predefined Model Configurations
 
 The following models have optimized configurations:
