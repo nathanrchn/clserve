@@ -200,7 +200,7 @@ set -ex
 export no_proxy=\"0.0.0.0,\$no_proxy\"
 export NO_PROXY=\"0.0.0.0,\$NO_PROXY\"
 
-python -m sglang_router.launch_router --host 0.0.0.0 --port 30000 --worker-urls${worker_urls_str} --model-path ${MODEL_PATH} --policy ${ROUTER_POLICY} ${REASONING_PARSER} ${TOOL_CALL_PARSER} --worker-startup-timeout-secs 1200" &
+python -m sglang_router.launch_router --host 0.0.0.0 --port 30000 --worker-urls${worker_urls_str} --model-path ${MODEL_PATH} --policy ${ROUTER_POLICY} ${REASONING_PARSER} ${TOOL_CALL_PARSER} --worker-startup-timeout-secs 1200 --max-concurrent-requests -1" &
 
     echo ""
     echo "Router URL: ${router_url}"
