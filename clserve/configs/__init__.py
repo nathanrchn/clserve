@@ -18,16 +18,15 @@ class ModelConfig:
     tp_size: int = 1
     dp_size: int = 1
     ep_size: int = 1
-    nodes_per_worker: int = 1
     workers: int = 1
+    nodes_per_worker: int = 1
     num_gpus_per_worker: int = 4
     cuda_graph_max_bs: int = 256
     grammar_backend: str = "llguidance"
     reasoning_parser: str = ""
     tool_call_parser: str = ""
     use_router: bool = False
-    router_policy: str = "cache_aware"
-    description: str = ""
+    router_policy: str = "round_robin"
 
 
 # Model aliases for convenience

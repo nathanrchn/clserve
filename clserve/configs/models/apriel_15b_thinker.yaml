@@ -1,0 +1,5 @@
+model_path: ServiceNow-AI/Apriel-1.6-15b-Thinker
+dp_size: 2
+workers: 2
+num_gpus_per_worker: 1
+use_router: true
