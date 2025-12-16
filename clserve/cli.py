@@ -129,9 +129,6 @@ def main(verbose: bool):
 @click.option(
     "--grammar-backend", type=str, default="llguidance", help="Grammar backend"
 )
-@click.option(
-    "--use-router/--no-router", default=False, help="Enable load balancer router"
-)
 @click.option("--router-policy", type=str, default="cache_aware", help="Router policy")
 @click.option(
     "--router-environment",
@@ -160,7 +157,6 @@ def serve_cmd(
     num_gpus_per_worker: str,
     cuda_graph_max_bs: int,
     grammar_backend: str,
-    use_router: bool,
     router_policy: str,
     router_environment: Optional[str],
     reasoning_parser: str,
@@ -181,14 +177,14 @@ def serve_cmd(
       # Serve DeepSeek V3 with predefined config (4 nodes, TP=16)
       clserve serve deepseek-v3
 
-      # Serve with multiple workers
-      clserve serve deepseek-v3 --workers 2 --use-router
+      # Serve with multiple workers (router enabled automatically)
+      clserve serve deepseek-v3 --workers 2
 
       # Serve a custom model
       clserve serve my-org/my-model --tp-size 4 --nodes-per-worker 1
 
-      # Serve a small model with 4 instances per node
-      clserve serve llama-8b --num-gpus-per-worker 1 --use-router
+      # Serve a small model with 4 instances per node (router enabled automatically)
+      clserve serve llama-8b --num-gpus-per-worker 1
     """
     # Load user config for defaults
     user_config = load_config()
@@ -205,7 +201,6 @@ def serve_cmd(
         num_gpus_per_worker=int(num_gpus_per_worker),
         cuda_graph_max_bs=cuda_graph_max_bs,
         grammar_backend=grammar_backend,
-        use_router=use_router,
         router_policy=router_policy,
         router_environment=router_environment
         if router_environment is not None
@@ -223,8 +218,6 @@ def serve_cmd(
         click.echo(f"  TP size: {config.tp_size}, DP size: {config.dp_size}")
         click.echo(f"  Nodes per worker: {config.nodes_per_worker}")
         click.echo(f"  GPUs per worker: {config.num_gpus_per_worker}")
-        if config.use_router:
-            click.echo(f"  Router: enabled ({config.router_policy})")
         click.echo()
 
     try:

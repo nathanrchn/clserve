@@ -36,7 +36,6 @@ class SubmitArgs:
     num_gpus_per_worker: int = 4
     cuda_graph_max_bs: int = 256
     grammar_backend: str = "llguidance"
-    use_router: bool = False
     router_policy: str = "cache_aware"
     router_environment: str = "sglang_router"
     reasoning_parser: str = ""
@@ -115,7 +114,6 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
             num_gpus_per_worker=args.num_gpus_per_worker,
             cuda_graph_max_bs=args.cuda_graph_max_bs,
             grammar_backend=args.grammar_backend,
-            use_router=args.use_router,
             router_policy=args.router_policy,
             router_environment=args.router_environment,
             reasoning_parser=args.reasoning_parser,
@@ -144,7 +142,6 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
         ),
         cuda_graph_max_bs=args.cuda_graph_max_bs,
         grammar_backend=args.grammar_backend,
-        use_router=args.use_router or config.use_router,
         router_policy=args.router_policy
         if args.router_policy != "cache_aware"
         else config.router_policy,
@@ -204,7 +201,6 @@ def render_job_script(args: SubmitArgs) -> str:
         num_gpus_per_worker=args.num_gpus_per_worker,
         cuda_graph_max_bs=args.cuda_graph_max_bs,
         grammar_backend=args.grammar_backend,
-        use_router=args.use_router,
         router_policy=args.router_policy,
         router_environment=args.router_environment,
         reasoning_parser=reasoning_parser_arg,
@@ -271,17 +267,6 @@ def serve(args: SubmitArgs) -> str:
 
     # Validate arguments
     validate_args(merged_args)
-
-    # Check if router should be auto-enabled
-    processes_per_node = 4 // merged_args.num_gpus_per_worker
-    total_processes = (
-        merged_args.workers * merged_args.nodes_per_worker * processes_per_node
-    )
-    if total_processes > 1 and not merged_args.use_router:
-        logger.warning(
-            "Multiple worker processes detected but router is disabled. "
-            "Consider using --use-router for load balancing."
-        )
 
     # Render and submit job
     script = render_job_script(merged_args)

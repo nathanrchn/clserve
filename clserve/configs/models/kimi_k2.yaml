@@ -4,4 +4,3 @@ nodes_per_worker: 4
 workers: 4
 grammar_backend: xgrammar
 reasoning_parser: kimi
-use_router: true

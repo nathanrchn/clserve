@@ -3,4 +3,3 @@ tp_size: 16
 nodes_per_worker: 4
 workers: 4
 reasoning_parser: deepseek-v3
-use_router: true

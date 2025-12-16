@@ -1,5 +1,4 @@
 model_path: Qwen/Qwen3-8B
 dp_size: 4
 num_gpus_per_worker: 1
-use_router: true
 router_policy: cache_aware

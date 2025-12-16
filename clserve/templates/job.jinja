@@ -20,7 +20,6 @@ NODES_PER_WORKER={{ nodes_per_worker }}
 WORKERS={{ workers }}
 LOG_DIR="${HOME}/.clserve/logs/${SLURM_JOB_ID}"
 ENVIRONMENT={{ environment }}
-USE_ROUTER={{ use_router | lower }}
 ROUTER_ENVIRONMENT={{ router_environment }}
 ROUTER_POLICY={{ router_policy }}
 REASONING_PARSER="{{ reasoning_parser }}"
@@ -31,6 +30,14 @@ PROCESSES_PER_NODE=$((4 / NUM_GPUS_PER_WORKER))
 {% raw %}
 
 mkdir -p "${LOG_DIR}"
+
+# Calculate total processes to determine if router should be enabled
+TOTAL_PROCESSES=$((WORKERS * NODES_PER_WORKER * PROCESSES_PER_NODE))
+if [ $TOTAL_PROCESSES -gt 1 ]; then
+    USE_ROUTER=true
+else
+    USE_ROUTER=false
+fi
 
 # Write metadata for clserve status command
 cat > "${LOG_DIR}/metadata.txt" << METADATA_EOF
@@ -176,10 +183,9 @@ python -m sglang.launch_server --model-path ${MODEL_PATH} --host 0.0.0.0 --port 
     fi
 done
 
-# Launch router if enabled and there are multiple worker URLs (multiple workers or multiple processes per node)
-total_processes=${#worker_urls[@]}
+# Launch router if there are multiple worker processes
 router_url=""
-if [ "$USE_ROUTER" = "true" ] && [ $total_processes -gt 1 ]; then
+if [ "$USE_ROUTER" = "true" ]; then
     router_host_node=${nodes[0]}
     router_host_ip=${node_ips[0]}
     router_url="http://${router_host_ip}:30000"

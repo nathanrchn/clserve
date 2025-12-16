@@ -25,7 +25,6 @@ class ModelConfig:
     grammar_backend: str = "llguidance"
     reasoning_parser: str = ""
     tool_call_parser: str = ""
-    use_router: bool = False
     router_policy: str = "round_robin"
 
 

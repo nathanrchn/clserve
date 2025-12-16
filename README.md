@@ -100,14 +100,14 @@ clserve serve deepseek-v3
 clserve serve llama-405b
 clserve serve qwen3-235b
 
-# Serve with multiple workers
-clserve serve deepseek-v3 --workers 2 --use-router
+# Serve with multiple workers (router enabled automatically)
+clserve serve deepseek-v3 --workers 2
 
 # Serve a custom model
 clserve serve my-org/my-model --tp-size 4 --nodes-per-worker 1
 
-# Serve a small model with 4 instances per node
-clserve serve llama-8b --num-gpus-per-worker 1 --use-router
+# Serve a small model with 4 instances per node (router enabled automatically)
+clserve serve llama-8b --num-gpus-per-worker 1
 ```
 
 **Options:**
@@ -122,10 +122,11 @@ clserve serve llama-8b --num-gpus-per-worker 1 --use-router
 - `--cuda-graph-max-bs`: Max batch size for CUDA graphs (default: 256)
 - `--grammar-backend`: Grammar backend (default: llguidance)
 - `--reasoning-parser`: Reasoning parser module (for reasoning models)
-- `--use-router/--no-router`: Enable load balancer router
 - `--router-policy`: Router policy (cache_aware, random, round_robin)
 - `--router-environment`: Router container environment (default: sglang_router)
 - `--time-limit, -t`: Job time limit in HH:MM:SS (default: 04:00:00)
+
+**Note:** The load balancer router is automatically enabled when there are multiple worker processes (multiple workers or `--num-gpus-per-worker < 4`).
 
 ### `clserve status`
 
@@ -263,13 +264,13 @@ This will:
 - Start the model on the cluster
 - Print the job ID and endpoint URL instructions
 
-### Serve with multiple workers and router
+### Serve with multiple workers
 
 ```bash
-clserve serve deepseek-v3 --workers 2 --use-router
+clserve serve deepseek-v3 --workers 2
 ```
 
-This doubles capacity with load balancing.
+This doubles capacity with load balancing (router is enabled automatically).
 
 ### Serve a small model efficiently
 
@@ -305,6 +306,6 @@ clserve unifies single-node and multi-node deployments into a single template:
 
 - **Single node, full GPU**: `--nodes-per-worker 1 --num-gpus-per-worker 4`
 - **Multi-node distributed**: `--nodes-per-worker 4 --tp-size 16`
-- **Multiple instances per node**: `--num-gpus-per-worker 1 --use-router`
+- **Multiple instances per node**: `--num-gpus-per-worker 1`
 
-The router is automatically configured when needed for load balancing across multiple worker processes.
+The router is automatically enabled when there are multiple worker processes for load balancing.

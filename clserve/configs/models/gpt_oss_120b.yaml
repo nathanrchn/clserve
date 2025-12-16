@@ -2,4 +2,3 @@ model_path: openai/gpt-oss-120b
 tp_size: 4
 workers: 4
 reasoning_parser: gpt-oss
-use_router: true

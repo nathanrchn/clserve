@@ -3,4 +3,3 @@ tp_size: 8
 nodes_per_worker: 2
 workers: 4
 reasoning_parser: minimax-append-think
-use_router: true
