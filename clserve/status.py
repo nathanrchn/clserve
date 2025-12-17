@@ -56,6 +56,8 @@ class JobInfo:
     use_router: Optional[bool] = None
     worker_statuses: Optional[list[WorkerStatus]] = None
     router_worker_count: Optional[int] = None
+    time_limit: Optional[str] = None
+    time_left: Optional[str] = None
 
 
 def get_my_jobs(clserve_only: bool = True) -> list[dict]:
@@ -72,7 +74,7 @@ def get_my_jobs(clserve_only: bool = True) -> list[dict]:
             [
                 "squeue",
                 "--me",
-                "--format=%i|%j|%T|%N|%Z",
+                "--format=%i|%j|%T|%N|%Z|%l|%L",
                 "--noheader",
             ],
             capture_output=True,
@@ -87,7 +89,7 @@ def get_my_jobs(clserve_only: bool = True) -> list[dict]:
         if not line:
             continue
         parts = line.split("|")
-        if len(parts) >= 5:
+        if len(parts) >= 7:
             job_name = parts[1].strip()
             # Filter to only clserve jobs if requested
             if clserve_only and not job_name.startswith(CLSERVE_JOB_PREFIX):
@@ -99,6 +101,8 @@ def get_my_jobs(clserve_only: bool = True) -> list[dict]:
                     "state": parts[2].strip(),
                     "node_list": parts[3].strip(),
                     "work_dir": parts[4].strip(),
+                    "time_limit": parts[5].strip(),
+                    "time_left": parts[6].strip(),
                 }
             )
     return jobs
@@ -128,6 +132,32 @@ def get_job_details(job_id: str) -> Optional[dict]:
         details[match.group(1)] = match.group(2)
 
     return details
+
+
+def get_job_time_info(job_id: str) -> tuple[Optional[str], Optional[str]]:
+    """Get time limit and time left for a specific job via squeue.
+
+    Args:
+        job_id: SLURM job ID
+
+    Returns:
+        Tuple of (time_limit, time_left) or (None, None) if not found
+    """
+    try:
+        result = subprocess.run(
+            ["squeue", "-j", job_id, "--format=%l|%L", "--noheader"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        line = result.stdout.strip()
+        if line:
+            parts = line.split("|")
+            if len(parts) >= 2:
+                return parts[0].strip(), parts[1].strip()
+    except subprocess.CalledProcessError:
+        pass
+    return None, None
 
 
 def get_log_dir(job_id: str) -> Optional[Path]:
@@ -359,12 +389,19 @@ def is_clserve_job(job_name: str) -> bool:
     return job_name.startswith(CLSERVE_JOB_PREFIX)
 
 
-def get_job_info(job_id: str, clserve_only: bool = True) -> Optional[JobInfo]:
+def get_job_info(
+    job_id: str,
+    clserve_only: bool = True,
+    time_limit: Optional[str] = None,
+    time_left: Optional[str] = None,
+) -> Optional[JobInfo]:
     """Get comprehensive information about a job.
 
     Args:
         job_id: SLURM job ID
         clserve_only: If True, only return info for clserve jobs
+        time_limit: Optional pre-fetched time limit (avoids extra squeue call)
+        time_left: Optional pre-fetched time left (avoids extra squeue call)
 
     Returns:
         JobInfo object or None if job not found or not a clserve job
@@ -400,6 +437,10 @@ def get_job_info(job_id: str, clserve_only: bool = True) -> Optional[JobInfo]:
             if endpoint_url and metadata.get("USE_ROUTER", "").lower() == "true":
                 router_worker_count = get_router_worker_count(endpoint_url)
 
+    # Get time info if not provided
+    if time_limit is None or time_left is None:
+        time_limit, time_left = get_job_time_info(job_id)
+
     return JobInfo(
         job_id=job_id,
         job_name=job_name,
@@ -418,6 +459,8 @@ def get_job_info(job_id: str, clserve_only: bool = True) -> Optional[JobInfo]:
         else None,
         worker_statuses=worker_statuses,
         router_worker_count=router_worker_count,
+        time_limit=time_limit,
+        time_left=time_left,
     )
 
 
@@ -431,7 +474,11 @@ def list_serving_jobs() -> list[JobInfo]:
     serving_jobs = []
 
     for job in jobs:
-        job_info = get_job_info(job["job_id"])
+        job_info = get_job_info(
+            job["job_id"],
+            time_limit=job.get("time_limit"),
+            time_left=job.get("time_left"),
+        )
         if job_info:
             serving_jobs.append(job_info)
 

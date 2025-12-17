@@ -324,6 +324,10 @@ def _print_job_details(job):
         click.echo(f"Model: {job.model_path}")
     if job.endpoint_url:
         click.echo(f"Endpoint URL: {job.endpoint_url}")
+    if job.time_limit:
+        click.echo(f"Time limit: {job.time_limit}")
+    if job.time_left:
+        click.echo(f"Time left: {job.time_left}")
     if job.workers:
         click.echo(f"Workers: {job.workers}")
     if job.nodes_per_worker:
@@ -395,7 +399,7 @@ def _get_loading_status_summary(job: JobInfo) -> str:
 def _print_jobs_table(jobs):
     """Print jobs as a table."""
     table = PrettyTable()
-    table.field_names = ["Job ID", "Name", "State", "Status", "Model", "Endpoint URL"]
+    table.field_names = ["Job ID", "Name", "State", "Status", "Time Left", "Model", "Endpoint URL"]
     table.align = "l"
 
     for job in jobs:
@@ -407,12 +411,16 @@ def _print_jobs_table(jobs):
         # Get loading status
         status = _get_loading_status_summary(job) if job.state == "RUNNING" else "-"
 
+        # Get time left
+        time_left = job.time_left or "-"
+
         table.add_row(
             [
                 job.job_id,
                 job.job_name,
                 job.state,
                 status,
+                time_left,
                 model_name,
                 endpoint,
             ]
