@@ -5,6 +5,7 @@ from typing import Optional
 import click
 from prettytable import PrettyTable
 
+
 from clserve import __version__
 from clserve.submit import SubmitArgs, serve
 from clserve.status import (
@@ -79,31 +80,10 @@ def select_job(jobs: list[JobInfo], action: str = "select") -> Optional[JobInfo]
         click.echo(f"Invalid choice. Please enter 0-{len(jobs)}")
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option(version=__version__)
 @click.option("-v", "--verbose", is_flag=True, help="Enable verbose logging")
-def main(verbose: bool):
-    """clserve - CLI tool for serving LLM models on Alps.
-
-    Quick start:
-
-      # Serve a model using predefined config
-      clserve serve deepseek-v3
-
-      # Check status and get URL
-      clserve status
-
-      # Get URL for a specific model
-      clserve url deepseek-v3
-
-      # Stop a serving job
-      clserve stop deepseek-v3
-    """
-    setup_logging(verbose)
-
-
-@main.command()
-@click.argument("model")
+@click.option("--model", "-m", type=str, help="Model to serve")
 @click.option("--workers", "-w", type=int, default=1, help="Number of workers")
 @click.option("--nodes-per-worker", "-n", type=int, default=1, help="Nodes per worker")
 @click.option("--partition", "-p", type=str, default=None, help="SLURM partition")
@@ -115,7 +95,6 @@ def main(verbose: bool):
     help="Container environment",
 )
 @click.option("--tp-size", type=int, default=1, help="Tensor parallel size")
-@click.option("--dp-size", type=int, default=1, help="Data parallel size")
 @click.option("--ep-size", type=int, default=1, help="Expert parallel size")
 @click.option(
     "--num-gpus-per-worker",
@@ -145,14 +124,16 @@ def main(verbose: bool):
 @click.option(
     "--time-limit", "-t", type=str, default=None, help="Job time limit (HH:MM:SS)"
 )
-def serve_cmd(
-    model: str,
+@click.pass_context
+def main(
+    ctx,
+    verbose: bool,
+    model: Optional[str],
     workers: int,
     nodes_per_worker: int,
     partition: Optional[str],
     environment: Optional[str],
     tp_size: int,
-    dp_size: int,
     ep_size: int,
     num_gpus_per_worker: str,
     cuda_graph_max_bs: int,
@@ -163,29 +144,65 @@ def serve_cmd(
     tool_call_parser: str,
     time_limit: Optional[str],
 ):
-    """Start serving a model.
+    """clserve - CLI tool for serving LLM models on Alps.
 
-    MODEL can be:
-    - A model alias (e.g., deepseek-v3, llama-405b, qwen3-235b)
-    - A HuggingFace model path (e.g., meta-llama/Llama-3.1-70B-Instruct)
+    Serve a model:
 
-    If a predefined configuration exists for the model, it will be used
-    as defaults. You can override any setting with command-line options.
+      clserve -m deepseek-v3
+      clserve -m deepseek-v3 -w 2
+      clserve -m my-org/my-model --tp-size 4
 
-    Examples:
+    Other commands:
 
-      # Serve DeepSeek V3 with predefined config (4 nodes, TP=16)
-      clserve serve deepseek-v3
-
-      # Serve with multiple workers (router enabled automatically)
-      clserve serve deepseek-v3 --workers 2
-
-      # Serve a custom model
-      clserve serve my-org/my-model --tp-size 4 --nodes-per-worker 1
-
-      # Serve a small model with 4 instances per node (router enabled automatically)
-      clserve serve llama-8b --num-gpus-per-worker 1
+      clserve status            # Check status of jobs
+      clserve url deepseek-v3   # Get endpoint URL
+      clserve stop deepseek-v3  # Stop a job
+      clserve models            # List available models
     """
+    setup_logging(verbose)
+
+    if model:
+        # Serve the model
+        _serve_model(
+            model=model,
+            workers=workers,
+            nodes_per_worker=nodes_per_worker,
+            partition=partition,
+            environment=environment,
+            tp_size=tp_size,
+            ep_size=ep_size,
+            num_gpus_per_worker=num_gpus_per_worker,
+            cuda_graph_max_bs=cuda_graph_max_bs,
+            grammar_backend=grammar_backend,
+            router_policy=router_policy,
+            router_environment=router_environment,
+            reasoning_parser=reasoning_parser,
+            tool_call_parser=tool_call_parser,
+            time_limit=time_limit,
+        )
+    elif ctx.invoked_subcommand is None:
+        # No model and no subcommand - show help
+        click.echo(ctx.get_help())
+
+
+def _serve_model(
+    model: str,
+    workers: int,
+    nodes_per_worker: int,
+    partition: Optional[str],
+    environment: Optional[str],
+    tp_size: int,
+    ep_size: int,
+    num_gpus_per_worker: str,
+    cuda_graph_max_bs: int,
+    grammar_backend: str,
+    router_policy: str,
+    router_environment: Optional[str],
+    reasoning_parser: str,
+    tool_call_parser: str,
+    time_limit: Optional[str],
+):
+    """Serve a model (internal function)."""
     # Load user config for defaults
     user_config = load_config()
 
@@ -196,7 +213,6 @@ def serve_cmd(
         partition=partition if partition is not None else user_config.partition,
         environment=environment if environment is not None else user_config.environment,
         tp_size=tp_size,
-        dp_size=dp_size,
         ep_size=ep_size,
         num_gpus_per_worker=int(num_gpus_per_worker),
         cuda_graph_max_bs=cuda_graph_max_bs,
@@ -215,7 +231,7 @@ def serve_cmd(
     if config:
         click.echo(f"Using predefined config for {model}:")
         click.echo(f"  Model: {config.model_path}")
-        click.echo(f"  TP size: {config.tp_size}, DP size: {config.dp_size}")
+        click.echo(f"  TP size: {config.tp_size}")
         click.echo(f"  Nodes per worker: {config.nodes_per_worker}")
         click.echo(f"  GPUs per worker: {config.num_gpus_per_worker}")
         click.echo()
@@ -237,10 +253,6 @@ def serve_cmd(
     except Exception as e:
         click.echo(f"Error: {e}", err=True)
         raise SystemExit(1)
-
-
-# Alias 'serve' command
-main.add_command(serve_cmd, name="serve")
 
 
 @main.command()
@@ -285,7 +297,7 @@ def status(identifier: str = None):
             click.echo("No running jobs found")
             click.echo()
             click.echo("Start a new job with:")
-            click.echo("  clserve serve <model>")
+            click.echo("  clserve -m <model>")
 
 
 def _format_stage(stage: WorkerLoadingStage) -> str:
@@ -387,16 +399,7 @@ def _print_jobs_table(jobs):
     table.align = "l"
 
     for job in jobs:
-        model_name = ""
-        if job.model_path:
-            model_name = (
-                job.model_path.split("/")[-1]
-                if "/" in job.model_path
-                else job.model_path
-            )
-            if len(model_name) > 30:
-                model_name = model_name[:27] + "..."
-
+        model_name = job.model_path or ""
         endpoint = job.endpoint_url or "(pending)"
         if len(endpoint) > 35:
             endpoint = endpoint[:32] + "..."
@@ -486,8 +489,14 @@ def stop_cmd(model: str = None, stop_all_flag: bool = False, force: bool = False
       clserve stop deepseek-v3 --all
 
       # Stop all running jobs
+      clserve stop all
       clserve stop --all
     """
+    # Treat "all" as a special keyword to stop all jobs
+    if model is not None and model.lower() == "all":
+        model = None
+        stop_all_flag = True
+
     if model is None and not stop_all_flag:
         click.echo(
             "Error: Please provide a model name, or use --all to stop all jobs",
@@ -567,15 +576,14 @@ def models():
     """List available predefined model configurations.
 
     These models have optimized configurations for the cluster.
-    Use the alias or full path with 'clserve serve'.
 
     Example:
 
-      clserve serve deepseek-v3
-      clserve serve Qwen/Qwen3-235B-A22B-Instruct-2507
+      clserve -m deepseek-v3
+      clserve -m Qwen/Qwen3-235B-A22B-Instruct-2507
     """
     table = PrettyTable()
-    table.field_names = ["Alias", "Model Path", "TP", "Nodes/Worker", "Description"]
+    table.field_names = ["Alias", "Model Path", "TP", "Nodes/Worker"]
     table.align = "l"
 
     configs = list_available_configs()
@@ -585,18 +593,12 @@ def models():
         alias = config_name.replace("_", "-")
         config = load_model_config(alias)
         if config:
-            # Truncate description
-            desc = config.description
-            if len(desc) > 40:
-                desc = desc[:37] + "..."
-
             table.add_row(
                 [
                     alias,
                     config.model_path,
                     config.tp_size,
                     config.nodes_per_worker,
-                    desc,
                 ]
             )
 
@@ -606,7 +608,7 @@ def models():
         click.echo(table)
         click.echo()
         click.echo(
-            "Use 'clserve serve <alias>' to serve a model with its predefined config."
+            "Use 'clserve -m <alias>' to serve a model with its predefined config."
         )
         click.echo()
         click.echo(
@@ -638,7 +640,7 @@ def request(model: str):
     config = load_model_config(model)
     if config:
         click.echo(f"Model '{model}' is already available!")
-        click.echo(f"  Use: clserve serve {model}")
+        click.echo(f"  Use: clserve -m {model}")
         return
 
     # Build the GitHub issue URL

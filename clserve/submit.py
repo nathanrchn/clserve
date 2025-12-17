@@ -31,7 +31,6 @@ class SubmitArgs:
     partition: str = "normal"
     environment: str = "sglang_gb200"
     tp_size: int = 1
-    dp_size: int = 1
     ep_size: int = 1
     num_gpus_per_worker: int = 4
     cuda_graph_max_bs: int = 256
@@ -109,7 +108,6 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
             partition=args.partition,
             environment=args.environment,
             tp_size=args.tp_size,
-            dp_size=args.dp_size,
             ep_size=args.ep_size,
             num_gpus_per_worker=args.num_gpus_per_worker,
             cuda_graph_max_bs=args.cuda_graph_max_bs,
@@ -133,7 +131,6 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
         partition=args.partition,
         environment=args.environment,
         tp_size=args.tp_size if args.tp_size != 1 else config.tp_size,
-        dp_size=args.dp_size if args.dp_size != 1 else config.dp_size,
         ep_size=args.ep_size if args.ep_size != 1 else config.ep_size,
         num_gpus_per_worker=(
             args.num_gpus_per_worker
@@ -165,7 +162,13 @@ def render_job_script(args: SubmitArgs) -> str:
     template = Template(template_content)
 
     # Calculate total nodes
-    total_nodes = args.nodes_per_worker * args.workers
+    # When num_gpus_per_worker < 4, multiple workers can share a single node
+    if args.num_gpus_per_worker == 4:
+        total_nodes = args.nodes_per_worker * args.workers
+    else:
+        # Multiple workers per node (only valid when nodes_per_worker == 1)
+        workers_per_node = 4 // args.num_gpus_per_worker
+        total_nodes = (args.workers + workers_per_node - 1) // workers_per_node
 
     # Generate job name
     job_name = generate_job_name(args.model)
@@ -196,7 +199,6 @@ def render_job_script(args: SubmitArgs) -> str:
         environment=args.environment,
         model_path=args.model,
         tp_size=args.tp_size,
-        dp_size=args.dp_size,
         ep_size=args.ep_size,
         num_gpus_per_worker=args.num_gpus_per_worker,
         cuda_graph_max_bs=args.cuda_graph_max_bs,

@@ -16,7 +16,6 @@ class ModelConfig:
 
     model_path: str
     tp_size: int = 1
-    dp_size: int = 1
     ep_size: int = 1
     workers: int = 1
     nodes_per_worker: int = 1
@@ -52,6 +51,8 @@ MODEL_ALIASES = {
     "llama-8b": "meta-llama/Llama-3.1-8B-Instruct",
     # Swiss AI models
     "apertus-8b": "swiss-ai/Apertus-8B-Instruct-2509",
+    # ServiceNow models
+    "apriel-15b-thinker": "ServiceNow-AI/Apriel-1.6-15b-Thinker",
 }
 
 

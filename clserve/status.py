@@ -53,7 +53,6 @@ class JobInfo:
     workers: Optional[int] = None
     nodes_per_worker: Optional[int] = None
     tp_size: Optional[int] = None
-    dp_size: Optional[int] = None
     use_router: Optional[bool] = None
     worker_statuses: Optional[list[WorkerStatus]] = None
     router_worker_count: Optional[int] = None
@@ -173,7 +172,7 @@ def detect_worker_stage(log_file: Path) -> WorkerLoadingStage:
     """Detect the current loading stage of a worker from its log file.
 
     Args:
-        log_file: Path to worker log file
+        log_file: Path to worker log file (.out or .err)
 
     Returns:
         WorkerLoadingStage indicating current stage
@@ -185,16 +184,35 @@ def detect_worker_stage(log_file: Path) -> WorkerLoadingStage:
         with open(log_file) as f:
             content = f.read()
 
-        # Check for errors first
-        if "Error" in content or "Exception" in content or "Traceback" in content:
-            return WorkerLoadingStage.ERROR
+        # Also check the corresponding .err file for errors
+        err_file = log_file.with_suffix(".err")
+        err_content = ""
+        if err_file.exists():
+            with open(err_file) as f:
+                err_content = f.read()
 
-        # Check for ready state (server started)
+        # Check for ready state first - if server started successfully, it's ready
+        # regardless of any error-like text during startup
         if (
             "Application startup complete" in content
+            or "Application startup complete" in err_content
             or "Started server process" in content
+            or "Started server process" in err_content
         ):
             return WorkerLoadingStage.READY
+
+        # Only check for errors if not ready yet
+        error_patterns = [
+            "Scheduler hit an exception",
+            "RuntimeError:",
+            "Traceback (most recent call last)",
+            "CUDA error",
+            "NCCL error",
+            "child failed",
+        ]
+        for pattern in error_patterns:
+            if pattern in content or pattern in err_content:
+                return WorkerLoadingStage.ERROR
 
         # Check for CUDA graph capture
         if "Capture cuda graph" in content or "Capturing batches" in content:
@@ -239,14 +257,15 @@ def get_worker_statuses(log_dir: Path) -> list[WorkerStatus]:
         log_dir: Path to job log directory
 
     Returns:
-        List of WorkerStatus objects
+        List of WorkerStatus objects (one per worker, using node0 as the main node)
     """
     statuses = []
 
-    # Find all worker log files
-    # Pattern: worker{worker_id}_node{node_rank}_{node}.out or
-    #          worker{worker_id}_node{node_rank}_proc{proc_id}_{node}.out
-    worker_logs = list(log_dir.glob("worker*.out"))
+    # Find only node0 log files (the main node for each worker)
+    # Pattern: worker{worker_id}_node0_{node}.out or
+    #          worker{worker_id}_node0_proc{proc_id}_{node}.out
+    # We only check node0 because that's where the server runs and reports status
+    worker_logs = list(log_dir.glob("worker*_node0_*.out"))
 
     for log_file in worker_logs:
         # Parse filename to extract worker ID and node
@@ -254,7 +273,7 @@ def get_worker_statuses(log_dir: Path) -> list[WorkerStatus]:
         # worker0_node0_nid006170.out
         # worker0_node0_proc0_nid006170.out
         filename = log_file.name
-        match = re.match(r"worker(\d+)_node\d+(?:_proc\d+)?_(.+)\.out", filename)
+        match = re.match(r"worker(\d+)_node0(?:_proc\d+)?_(.+)\.out", filename)
         if match:
             worker_id = int(match.group(1))
             node = match.group(2)
@@ -394,7 +413,6 @@ def get_job_info(job_id: str, clserve_only: bool = True) -> Optional[JobInfo]:
         if "NODES_PER_WORKER" in metadata
         else None,
         tp_size=int(metadata["TP_SIZE"]) if "TP_SIZE" in metadata else None,
-        dp_size=int(metadata["DP_SIZE"]) if "DP_SIZE" in metadata else None,
         use_router=metadata.get("USE_ROUTER", "").lower() == "true"
         if "USE_ROUTER" in metadata
         else None,

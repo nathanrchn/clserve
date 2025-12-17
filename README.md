@@ -37,7 +37,7 @@ clserve config
 clserve download deepseek-v3
 
 # Serve a model using predefined config
-clserve serve deepseek-v3
+clserve -m deepseek-v3
 
 # Check status of all clserve jobs (shows worker loading stages)
 clserve status
@@ -90,38 +90,39 @@ router_environment: sglang_router
 time_limit: "04:00:00"
 ```
 
-### `clserve serve`
+### `clserve -m <model>`
 
 Start serving a model.
 
 ```bash
 # Serve with predefined configuration
-clserve serve deepseek-v3
-clserve serve llama-405b
-clserve serve qwen3-235b
+clserve -m deepseek-v3
+clserve -m llama-405b
+clserve -m qwen3-235b
 
 # Serve with multiple workers (router enabled automatically)
-clserve serve deepseek-v3 --workers 2
+clserve -m deepseek-v3 -w 2
 
 # Serve a custom model
-clserve serve my-org/my-model --tp-size 4 --nodes-per-worker 1
+clserve -m my-org/my-model --tp-size 4 --nodes-per-worker 1
 
 # Serve a small model with 4 instances per node (router enabled automatically)
-clserve serve llama-8b --num-gpus-per-worker 1
+clserve -m llama-8b --num-gpus-per-worker 1
 ```
 
 **Options:**
+- `--model, -m`: Model to serve (required)
 - `--workers, -w`: Number of workers (default: 1)
 - `--nodes-per-worker, -n`: Nodes per worker (default: 1)
 - `--partition, -p`: SLURM partition (default: normal)
 - `--environment, -e`: Container environment (default: sglang_gb200)
 - `--tp-size`: Tensor parallel size (default: 1)
-- `--dp-size`: Data parallel size (default: 1)
 - `--ep-size`: Expert parallel size (default: 1)
 - `--num-gpus-per-worker`: GPUs per worker process (1, 2, or 4)
 - `--cuda-graph-max-bs`: Max batch size for CUDA graphs (default: 256)
 - `--grammar-backend`: Grammar backend (default: llguidance)
 - `--reasoning-parser`: Reasoning parser module (for reasoning models)
+- `--tool-call-parser`: Tool call parser module (for tool calling models)
 - `--router-policy`: Router policy (cache_aware, random, round_robin)
 - `--router-environment`: Router container environment (default: sglang_router)
 - `--time-limit, -t`: Job time limit in HH:MM:SS (default: 04:00:00)
@@ -141,6 +142,17 @@ clserve status 12345
 
 # Show status for jobs serving a model
 clserve status deepseek-v3
+```
+
+Example output:
+
+```
++---------+----------------+---------+--------+--------------------------------------+----------------------------+
+| Job ID  | Name           | State   | Status | Model                                | Endpoint URL               |
++---------+----------------+---------+--------+--------------------------------------+----------------------------+
+| 1252956 | clserve_x41v5v | RUNNING | READY  | ServiceNow-AI/Apriel-1.6-15b-Thinker | http://172.28.44.184:30000 |
+| 1252955 | clserve_fyawyz | RUNNING | READY  | Qwen/Qwen3-235B-A22B-Instruct-2507   | http://172.28.35.60:30000  |
++---------+----------------+---------+--------+--------------------------------------+----------------------------+
 ```
 
 The status command displays:
@@ -184,6 +196,24 @@ List available predefined model configurations.
 
 ```bash
 clserve models
+```
+
+Example output:
+
+```
++--------------------+--------------------------------------+----+--------------+
+| Alias              | Model Path                           | TP | Nodes/Worker |
++--------------------+--------------------------------------+----+--------------+
+| apertus-8b         | swiss-ai/Apertus-8B-Instruct-2509    | 1  | 1            |
+| apriel-15b-thinker | ServiceNow-AI/Apriel-1.6-15b-Thinker | 1  | 1            |
+| deepseek-r1        | deepseek-ai/DeepSeek-R1              | 16 | 4            |
+| deepseek-v3        | deepseek-ai/DeepSeek-V3.1            | 16 | 4            |
+| llama-405b         | meta-llama/Llama-3.1-405B-Instruct   | 16 | 4            |
+| llama-70b          | meta-llama/Llama-3.1-70B-Instruct    | 4  | 1            |
+| llama-8b           | meta-llama/Llama-3.1-8B-Instruct     | 1  | 1            |
+| qwen3-235b         | Qwen/Qwen3-235B-A22B-Instruct-2507   | 8  | 2            |
+| qwen3-8b           | Qwen/Qwen3-8B                        | 1  | 1            |
++--------------------+--------------------------------------+----+--------------+
 ```
 
 ### `clserve logs`
@@ -236,27 +266,28 @@ The following models have optimized configurations:
 | Alias | Model | TP Size | Nodes/Worker | Description |
 |-------|-------|---------|--------------|-------------|
 | deepseek-v3 | deepseek-ai/DeepSeek-V3.1 | 16 | 4 | DeepSeek V3.1 MoE (FP8) |
-| deepseek-v3.2 | deepseek-ai/DeepSeek-V3.2 | 16 | 4 | DeepSeek V3.2 - 4 workers, 4 nodes each |
+| deepseek-v3-2 | deepseek-ai/DeepSeek-V3.2 | 16 | 4 | DeepSeek V3.2 (4 workers default) |
 | deepseek-r1 | deepseek-ai/DeepSeek-R1 | 16 | 4 | DeepSeek R1 reasoning model |
 | llama-405b | meta-llama/Llama-3.1-405B-Instruct | 16 | 4 | Llama 3.1 405B |
 | llama-70b | meta-llama/Llama-3.1-70B-Instruct | 4 | 1 | Llama 3.1 70B |
 | llama-8b | meta-llama/Llama-3.1-8B-Instruct | 1 | 1 | Llama 3.1 8B (4x per node) |
-| qwen3-235b | Qwen/Qwen3-235B-A22B-Instruct-2507 | 8 | 2 | Qwen3 235B MoE |
+| qwen3-235b | Qwen/Qwen3-235B-A22B-Instruct-2507 | 8 | 2 | Qwen3 235B MoE (8 workers default) |
 | qwen3-coder-480b | Qwen/Qwen3-Coder-480B-A35B-Instruct | 16 | 4 | Qwen3 Coder 480B MoE |
 | qwen3-32b | Qwen/Qwen3-32B | 2 | 1 | Qwen3 32B (2x per node) |
 | qwen3-8b | Qwen/Qwen3-8B | 1 | 1 | Qwen3 8B (4x per node) |
 | qwen3-embedding-4b | Qwen/Qwen3-Embedding-4B | 1 | 1 | Qwen3 Embedding 4B (4x per node) |
 | apertus-8b | swiss-ai/Apertus-8B-Instruct-2509 | 1 | 1 | Apertus 8B (4x per node) |
-| gpt-oss-120b | openai/gpt-oss-120b | 4 | 1 | OpenAI GPT-OSS 120B - 4 workers |
-| minimax-m2 | MiniMaxAI/MiniMax-M2 | 8 | 2 | MiniMax M2 - 4 workers, 2 nodes each |
-| kimi-k2 | moonshotai/Kimi-K2-Instruct-0905 | 16 | 4 | Kimi K2 Instruct - 4 workers |
+| apriel-15b-thinker | ServiceNow-AI/Apriel-1.6-15b-Thinker | 1 | 1 | Apriel 1.6 15B Thinker (4x per node) |
+| gpt-oss-120b | openai/gpt-oss-120b | 4 | 1 | OpenAI GPT-OSS 120B (4 workers default) |
+| minimax-m2 | MiniMaxAI/MiniMax-M2 | 8 | 2 | MiniMax M2 (4 workers default) |
+| kimi-k2 | moonshotai/Kimi-K2-Instruct-0905 | 16 | 4 | Kimi K2 Instruct (4 workers default) |
 
 ## Examples
 
 ### Serve DeepSeek V3 with default config
 
 ```bash
-clserve serve deepseek-v3
+clserve -m deepseek-v3
 ```
 
 This will:
@@ -267,7 +298,7 @@ This will:
 ### Serve with multiple workers
 
 ```bash
-clserve serve deepseek-v3 --workers 2
+clserve -m deepseek-v3 -w 2
 ```
 
 This doubles capacity with load balancing (router is enabled automatically).
@@ -275,7 +306,7 @@ This doubles capacity with load balancing (router is enabled automatically).
 ### Serve a small model efficiently
 
 ```bash
-clserve serve llama-8b
+clserve -m llama-8b
 ```
 
 Predefined config runs 4 instances per node with a router for high throughput.
@@ -284,11 +315,11 @@ Predefined config runs 4 instances per node with a router for high throughput.
 
 ```bash
 # Start serving
-clserve serve deepseek-v3
+clserve -m deepseek-v3
 # Output: Job ID: 12345
 
 # Wait for startup, then get URL
-clserve url 12345
+clserve url deepseek-v3
 # Output: http://10.0.0.1:30000
 
 # Use the API
@@ -297,7 +328,7 @@ curl http://10.0.0.1:30000/v1/chat/completions \
   -d '{"model": "deepseek-ai/DeepSeek-V3.1", "messages": [{"role": "user", "content": "Hello!"}]}'
 
 # When done, stop the job
-clserve stop 12345
+clserve stop deepseek-v3
 ```
 
 ## Architecture
