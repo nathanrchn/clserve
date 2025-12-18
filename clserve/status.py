@@ -253,15 +253,16 @@ def detect_worker_stage(log_file: Path) -> WorkerLoadingStage:
                     return WorkerLoadingStage.READY
             return WorkerLoadingStage.CAPTURING_CUDA_GRAPH
 
-        # Check for weight loading
+        # Check for weight loading (these messages appear in stderr)
+        combined = content + err_content
         if (
-            "Load weight begin" in content
-            or "Loading safetensors checkpoint shards" in content
+            "Load weight begin" in combined
+            or "Loading safetensors checkpoint shards" in combined
         ):
             # If we see "Load weight end", move to next stage
-            if "Load weight end" in content:
+            if "Load weight end" in combined:
                 # Check if CUDA graph capture has started
-                if "Capture cuda graph" in content:
+                if "Capture cuda graph" in combined:
                     return WorkerLoadingStage.CAPTURING_CUDA_GRAPH
                 # Otherwise still in loading phase (KV cache allocation, etc.)
                 return WorkerLoadingStage.LOADING_WEIGHTS

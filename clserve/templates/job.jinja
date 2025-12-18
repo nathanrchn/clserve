@@ -68,7 +68,7 @@ node_ips=()
 # First collect all node IPs
 for node_idx in $(seq 0 $((NODES - 1))); do
     node=${nodes[$node_idx]}
-    node_ip=$(srun --nodes=1 --ntasks=1 -w ${node} hostname -i)
+    node_ip=$(getent hosts ${node} | awk '{print $1}')
     if [ -z "$node_ip" ]; then
         echo "Error: Could not retrieve IP address for node ${node}"
         exit 1
