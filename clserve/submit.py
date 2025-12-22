@@ -15,7 +15,7 @@ try:
 except ImportError:
     from importlib_resources import files
 
-from clserve.configs import load_model_config, get_model_path
+from clserve.configs import load_model_config, get_model_path, Defaults
 from clserve.config import get_account
 
 logger = logging.getLogger(__name__)
@@ -26,20 +26,20 @@ class SubmitArgs:
     """Arguments for submitting a serving job."""
 
     model: str
-    workers: int = 1
-    nodes_per_worker: int = 1
-    partition: str = "normal"
-    environment: str = "sglang_gb200"
-    tp_size: int = 1
-    ep_size: int = 1
-    num_gpus_per_worker: int = 4
-    cuda_graph_max_bs: int = 256
-    grammar_backend: str = "llguidance"
-    router_policy: str = "cache_aware"
-    router_environment: str = "sglang_router"
-    reasoning_parser: str = ""
-    tool_call_parser: str = ""
-    time_limit: str = "04:00:00"
+    workers: int = Defaults.WORKERS
+    nodes_per_worker: int = Defaults.NODES_PER_WORKER
+    partition: str = Defaults.PARTITION
+    environment: str = Defaults.ENVIRONMENT
+    tp_size: int = Defaults.TP_SIZE
+    ep_size: int = Defaults.EP_SIZE
+    num_gpus_per_worker: int = Defaults.NUM_GPUS_PER_WORKER
+    cuda_graph_max_bs: int = Defaults.CUDA_GRAPH_MAX_BS
+    grammar_backend: str = Defaults.GRAMMAR_BACKEND
+    router_policy: str = Defaults.ROUTER_POLICY
+    router_environment: str = Defaults.ROUTER_ENVIRONMENT
+    reasoning_parser: str = Defaults.REASONING_PARSER
+    tool_call_parser: str = Defaults.TOOL_CALL_PARSER
+    time_limit: str = Defaults.TIME_LIMIT
 
 
 def nanoid(length: int = 6) -> str:
@@ -122,26 +122,42 @@ def merge_with_config(args: SubmitArgs) -> SubmitArgs:
     # Use config values as defaults, but user args override
     return SubmitArgs(
         model=config.model_path,
-        workers=args.workers if args.workers != 1 else config.workers,
+        workers=(
+            args.workers if args.workers != Defaults.WORKERS else config.workers
+        ),
         nodes_per_worker=(
             args.nodes_per_worker
-            if args.nodes_per_worker != 1
+            if args.nodes_per_worker != Defaults.NODES_PER_WORKER
             else config.nodes_per_worker
         ),
         partition=args.partition,
         environment=args.environment,
-        tp_size=args.tp_size if args.tp_size != 1 else config.tp_size,
-        ep_size=args.ep_size if args.ep_size != 1 else config.ep_size,
+        tp_size=(
+            args.tp_size if args.tp_size != Defaults.TP_SIZE else config.tp_size
+        ),
+        ep_size=(
+            args.ep_size if args.ep_size != Defaults.EP_SIZE else config.ep_size
+        ),
         num_gpus_per_worker=(
             args.num_gpus_per_worker
-            if args.num_gpus_per_worker != 4
+            if args.num_gpus_per_worker != Defaults.NUM_GPUS_PER_WORKER
             else config.num_gpus_per_worker
         ),
-        cuda_graph_max_bs=args.cuda_graph_max_bs,
-        grammar_backend=args.grammar_backend,
-        router_policy=args.router_policy
-        if args.router_policy != "cache_aware"
-        else config.router_policy,
+        cuda_graph_max_bs=(
+            args.cuda_graph_max_bs
+            if args.cuda_graph_max_bs != Defaults.CUDA_GRAPH_MAX_BS
+            else config.cuda_graph_max_bs
+        ),
+        grammar_backend=(
+            args.grammar_backend
+            if args.grammar_backend != Defaults.GRAMMAR_BACKEND
+            else config.grammar_backend
+        ),
+        router_policy=(
+            args.router_policy
+            if args.router_policy != Defaults.ROUTER_POLICY
+            else config.router_policy
+        ),
         router_environment=args.router_environment,
         reasoning_parser=args.reasoning_parser or config.reasoning_parser,
         tool_call_parser=args.tool_call_parser or config.tool_call_parser,

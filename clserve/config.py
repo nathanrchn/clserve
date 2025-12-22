@@ -7,6 +7,9 @@ from pathlib import Path
 import yaml
 
 
+from clserve.configs import Defaults
+
+
 CLSERVE_DIR = Path.home() / ".clserve"
 CONFIG_FILE = CLSERVE_DIR / "config.yaml"
 
@@ -16,10 +19,10 @@ class UserConfig:
     """User configuration for clserve defaults."""
 
     account: str = ""
-    partition: str = "normal"
-    environment: str = "sglang_gb200"
-    router_environment: str = "sglang_router"
-    time_limit: str = "04:00:00"
+    partition: str = Defaults.PARTITION
+    environment: str = Defaults.ENVIRONMENT
+    router_environment: str = Defaults.ROUTER_ENVIRONMENT
+    time_limit: str = Defaults.TIME_LIMIT
 
     def to_dict(self) -> dict:
         """Convert config to dictionary for YAML serialization."""
@@ -54,10 +57,10 @@ def load_config() -> UserConfig:
             data = yaml.safe_load(f) or {}
         return UserConfig(
             account=data.get("account", ""),
-            partition=data.get("partition", "normal"),
-            environment=data.get("environment", "sglang_gb200"),
-            router_environment=data.get("router_environment", "sglang_router"),
-            time_limit=data.get("time_limit", "04:00:00"),
+            partition=data.get("partition", Defaults.PARTITION),
+            environment=data.get("environment", Defaults.ENVIRONMENT),
+            router_environment=data.get("router_environment", Defaults.ROUTER_ENVIRONMENT),
+            time_limit=data.get("time_limit", Defaults.TIME_LIMIT),
         )
     except Exception:
         return UserConfig()

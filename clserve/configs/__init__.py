@@ -10,21 +10,43 @@ except ImportError:
     from importlib_resources import files
 
 
+class Defaults:
+    """Default values for model serving configuration.
+
+    This is the single source of truth for all default values.
+    """
+
+    WORKERS: int = 1
+    NODES_PER_WORKER: int = 1
+    PARTITION: str = "normal"
+    ENVIRONMENT: str = "/capstor/store/cscs/swissai/infra01/reasoning/imgs/projects/vs:251215/env.toml"
+    TP_SIZE: int = 1
+    EP_SIZE: int = 1
+    NUM_GPUS_PER_WORKER: int = 4
+    CUDA_GRAPH_MAX_BS: int = 256
+    GRAMMAR_BACKEND: str = "llguidance"
+    ROUTER_POLICY: str = "cache_aware"
+    ROUTER_ENVIRONMENT: str = "/capstor/store/cscs/swissai/infra01/reasoning/imgs/projects/vs:251215/env.toml"
+    REASONING_PARSER: str = ""
+    TOOL_CALL_PARSER: str = ""
+    TIME_LIMIT: str = "04:00:00"
+
+
 @dataclass
 class ModelConfig:
     """Configuration for serving a specific model."""
 
     model_path: str
-    tp_size: int = 1
-    ep_size: int = 1
-    workers: int = 1
-    nodes_per_worker: int = 1
-    num_gpus_per_worker: int = 4
-    cuda_graph_max_bs: int = 256
-    grammar_backend: str = "llguidance"
-    reasoning_parser: str = ""
-    tool_call_parser: str = ""
-    router_policy: str = "round_robin"
+    tp_size: int = Defaults.TP_SIZE
+    ep_size: int = Defaults.EP_SIZE
+    workers: int = Defaults.WORKERS
+    nodes_per_worker: int = Defaults.NODES_PER_WORKER
+    num_gpus_per_worker: int = Defaults.NUM_GPUS_PER_WORKER
+    cuda_graph_max_bs: int = Defaults.CUDA_GRAPH_MAX_BS
+    grammar_backend: str = Defaults.GRAMMAR_BACKEND
+    reasoning_parser: str = Defaults.REASONING_PARSER
+    tool_call_parser: str = Defaults.TOOL_CALL_PARSER
+    router_policy: str = Defaults.ROUTER_POLICY
 
 
 # Model aliases for convenience
@@ -53,6 +75,8 @@ MODEL_ALIASES = {
     "apertus-8b": "swiss-ai/Apertus-8B-Instruct-2509",
     # ServiceNow models
     "apriel-15b-thinker": "ServiceNow-AI/Apriel-1.6-15b-Thinker",
+    # NVIDIA models
+    "nemotron-nano-30b": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
 }
 
 

@@ -288,32 +288,44 @@ def get_worker_statuses(log_dir: Path) -> list[WorkerStatus]:
         log_dir: Path to job log directory
 
     Returns:
-        List of WorkerStatus objects (one per worker, using node0 as the main node)
+        List of WorkerStatus objects (one per worker)
     """
     statuses = []
+    seen_worker_ids = set()
 
-    # Find only node0 log files (the main node for each worker)
-    # Pattern: worker{worker_id}_node0_{node}.out or
-    #          worker{worker_id}_node0_proc{proc_id}_{node}.out
-    # We only check node0 because that's where the server runs and reports status
-    worker_logs = list(log_dir.glob("worker*_node0_*.out"))
-
-    for log_file in worker_logs:
-        # Parse filename to extract worker ID and node
-        # Examples:
-        # worker0_node0_nid006170.out
-        # worker0_node0_proc0_nid006170.out
+    # Pattern 1: Multi-node workers (num_gpus_per_worker == 4)
+    # Format: worker{worker_id}_node0_{node}.out
+    for log_file in log_dir.glob("worker*_node0_*.out"):
         filename = log_file.name
-        match = re.match(r"worker(\d+)_node0(?:_proc\d+)?_(.+)\.out", filename)
+        match = re.match(r"worker(\d+)_node0_(.+)\.out", filename)
         if match:
             worker_id = int(match.group(1))
-            node = match.group(2)
-            stage = detect_worker_stage(log_file)
-            statuses.append(
-                WorkerStatus(
-                    worker_id=worker_id, node=node, stage=stage, log_file=log_file
+            if worker_id not in seen_worker_ids:
+                node = match.group(2)
+                stage = detect_worker_stage(log_file)
+                statuses.append(
+                    WorkerStatus(
+                        worker_id=worker_id, node=node, stage=stage, log_file=log_file
+                    )
                 )
-            )
+                seen_worker_ids.add(worker_id)
+
+    # Pattern 2: Single-GPU workers (num_gpus_per_worker < 4)
+    # Format: worker{worker_id}_proc{proc_id}_{node}.out
+    for log_file in log_dir.glob("worker*_proc*_*.out"):
+        filename = log_file.name
+        match = re.match(r"worker(\d+)_proc\d+_(.+)\.out", filename)
+        if match:
+            worker_id = int(match.group(1))
+            if worker_id not in seen_worker_ids:
+                node = match.group(2)
+                stage = detect_worker_stage(log_file)
+                statuses.append(
+                    WorkerStatus(
+                        worker_id=worker_id, node=node, stage=stage, log_file=log_file
+                    )
+                )
+                seen_worker_ids.add(worker_id)
 
     # Sort by worker ID
     statuses.sort(key=lambda x: x.worker_id)
