@@ -24,6 +24,7 @@ pip install -e .
 - **Real-time status monitoring** - Track worker loading stages from initialization to ready
 - **Flexible deployment** - Single-node, multi-node, or multiple instances per node
 - **Model management** - Download models from HuggingFace Hub
+- **Reliable downloading** - Built-in caching proxy to prevent HuggingFace API rate limits
 - **Log management** - Easy access to job logs for debugging
 - **User configuration** - Persistent configuration for account, partition, and environment defaults
 
@@ -115,7 +116,7 @@ clserve -m llama-8b --num-gpus-per-worker 1
 - `--workers, -w`: Number of workers (default: 1)
 - `--nodes-per-worker, -n`: Nodes per worker (default: 1)
 - `--partition, -p`: SLURM partition (default: normal)
-- `--environment, -e`: Container environment (default: sglang_gb200)
+- `--environment, -e`: Container environment (default: optimized environment)
 - `--tp-size`: Tensor parallel size (default: 1)
 - `--ep-size`: Expert parallel size (default: 1)
 - `--num-gpus-per-worker`: GPUs per worker process (1, 2, or 4)
@@ -123,8 +124,8 @@ clserve -m llama-8b --num-gpus-per-worker 1
 - `--grammar-backend`: Grammar backend (default: llguidance)
 - `--reasoning-parser`: Reasoning parser module (for reasoning models)
 - `--tool-call-parser`: Tool call parser module (for tool calling models)
-- `--router-policy`: Router policy (cache_aware, random, round_robin)
-- `--router-environment`: Router container environment (default: sglang_router)
+- `--router-policy`: Router policy (default: cache_aware)
+- `--router-environment`: Router container environment (default: optimized environment)
 - `--time-limit, -t`: Job time limit in HH:MM:SS (default: 04:00:00)
 
 **Note:** The load balancer router is automatically enabled when there are multiple worker processes (multiple workers or `--num-gpus-per-worker < 4`).
@@ -266,21 +267,22 @@ The following models have optimized configurations:
 | Alias | Model | TP Size | Nodes/Worker | Description |
 |-------|-------|---------|--------------|-------------|
 | deepseek-v3 | deepseek-ai/DeepSeek-V3.1 | 16 | 4 | DeepSeek V3.1 MoE (FP8) |
-| deepseek-v3-2 | deepseek-ai/DeepSeek-V3.2 | 16 | 4 | DeepSeek V3.2 (4 workers default) |
+| deepseek-v3-2 | deepseek-ai/DeepSeek-V3.2 | 16 | 4 | DeepSeek V3.2 |
 | deepseek-r1 | deepseek-ai/DeepSeek-R1 | 16 | 4 | DeepSeek R1 reasoning model |
 | llama-405b | meta-llama/Llama-3.1-405B-Instruct | 16 | 4 | Llama 3.1 405B |
 | llama-70b | meta-llama/Llama-3.1-70B-Instruct | 4 | 1 | Llama 3.1 70B |
 | llama-8b | meta-llama/Llama-3.1-8B-Instruct | 1 | 1 | Llama 3.1 8B (4x per node) |
-| qwen3-235b | Qwen/Qwen3-235B-A22B-Instruct-2507 | 8 | 2 | Qwen3 235B MoE (8 workers default) |
+| qwen3-235b | Qwen/Qwen3-235B-A22B-Instruct-2507 | 8 | 2 | Qwen3 235B MoE |
 | qwen3-coder-480b | Qwen/Qwen3-Coder-480B-A35B-Instruct | 16 | 4 | Qwen3 Coder 480B MoE |
 | qwen3-32b | Qwen/Qwen3-32B | 2 | 1 | Qwen3 32B (2x per node) |
 | qwen3-8b | Qwen/Qwen3-8B | 1 | 1 | Qwen3 8B (4x per node) |
 | qwen3-embedding-4b | Qwen/Qwen3-Embedding-4B | 1 | 1 | Qwen3 Embedding 4B (4x per node) |
 | apertus-8b | swiss-ai/Apertus-8B-Instruct-2509 | 1 | 1 | Apertus 8B (4x per node) |
 | apriel-15b-thinker | ServiceNow-AI/Apriel-1.6-15b-Thinker | 1 | 1 | Apriel 1.6 15B Thinker (4x per node) |
-| gpt-oss-120b | openai/gpt-oss-120b | 4 | 1 | OpenAI GPT-OSS 120B (4 workers default) |
-| minimax-m2 | MiniMaxAI/MiniMax-M2 | 8 | 2 | MiniMax M2 (4 workers default) |
-| kimi-k2 | moonshotai/Kimi-K2-Instruct-0905 | 16 | 4 | Kimi K2 Instruct (4 workers default) |
+| gpt-oss-120b | openai/gpt-oss-120b | 4 | 1 | OpenAI GPT-OSS 120B |
+| minimax-m2 | MiniMaxAI/MiniMax-M2 | 4 | 1 | MiniMax M2 |
+| kimi-k2 | moonshotai/Kimi-K2-Instruct-0905 | 16 | 4 | Kimi K2 Instruct |
+| nemotron-nano-30b | nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16 | 1 | 1 | Nemotron Nano 30B (4x per node) |
 
 ## Examples
 
