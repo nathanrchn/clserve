@@ -15,8 +15,9 @@ try:
 except ImportError:
     from importlib_resources import files
 
-from clserve.configs import load_model_config, get_model_path, Defaults
 from clserve.config import get_account
+from clserve.status import CLSERVE_LOGS_DIR
+from clserve.configs import load_model_config, get_model_path, Defaults
 
 logger = logging.getLogger(__name__)
 
@@ -262,8 +263,7 @@ def submit_job(script_content: str) -> str:
 
 def ensure_clserve_dir() -> None:
     """Ensure the ~/.clserve/logs directory exists."""
-    clserve_dir = os.path.expanduser("~/.clserve/logs")
-    os.makedirs(clserve_dir, exist_ok=True)
+    os.makedirs(CLSERVE_LOGS_DIR, exist_ok=True)
 
 
 def serve(args: SubmitArgs) -> str:
@@ -289,5 +289,11 @@ def serve(args: SubmitArgs) -> str:
     # Render and submit job
     script = render_job_script(merged_args)
     job_id = submit_job(script)
+
+    # Save script to logs folder
+    log_dir = CLSERVE_LOGS_DIR / job_id
+    log_dir.mkdir(parents=True, exist_ok=True)
+    with open(log_dir / "submit.sh", "w") as f:
+        f.write(script)
 
     return job_id

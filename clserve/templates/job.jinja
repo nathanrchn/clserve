@@ -8,6 +8,7 @@
 #SBATCH --output={{ home }}/.clserve/logs/%j/log.out
 #SBATCH --error={{ home }}/.clserve/logs/%j/log.err
 
+set -ex
 
 TP_SIZE={{ tp_size }}
 EP_SIZE={{ ep_size }}
@@ -179,7 +180,7 @@ CACHE_PROXY_EOF
 echo "Starting HuggingFace API cache proxy on ${CACHE_HOST}:${CACHE_PORT}"
 
 srun --nodes=1 --ntasks=1 --nodelist=${nodes[0]} --container-writable --environment=$ENVIRONMENT --cpus-per-task=4 --overlap --output=${LOG_DIR}/cache_proxy.out --error=${LOG_DIR}/cache_proxy.err \
-    python "${LOG_DIR}/cache_proxy.py" --host 0.0.0.0 --port ${CACHE_PORT} --cache-dir ${CACHE_DIR} &
+    bash --norc --noprofile -c "set -ex; python \"${LOG_DIR}/cache_proxy.py\" --host 0.0.0.0 --port ${CACHE_PORT} --cache-dir ${CACHE_DIR}" &
 
 # Wait for cache proxy to be ready
 echo "Waiting for cache proxy to be ready..."
